@@ -63,17 +63,18 @@ Describe "Read-CAMConfig" {
             $err = Read-CAMConfig -Path "Z:\Z:\Z:\" 2>&1
             $err | Should -Be 'Unable to read config at Z:\Z:\Z:\\CAMConfig.json, defaulting to hardcoded fallback values.'
         }
-    }
-    if (test-path "$((Get-Item -Path ".\").FullName)\CAMConfig.json") {
-        It "Loads config from local path" {
-            Read-CAMConfig | Should -Be $true
-        }
-        It "Validates JSON configuration" {
-            $Json = Get-Content -Raw -Path "$((Get-Item -Path ".\").FullName)\CAMConfig.json"
-            $Json.Remove(0,1) | Out-File "$((Get-Item -Path ".\").FullName)\CAMConfig.json"
-            $err = Read-CamConfig 2>&1
-            $Json | Out-File "$((Get-Item -Path ".\").FullName)\CAMConfig.json"
-            $err | Should -Be "Unable to read config at $((Get-Item -Path ".\").FullName)\CAMConfig.json, defaulting to hardcoded fallback values."
+    
+        if (test-path "$((Get-Item -Path ".\").FullName)\CAMConfig.json") {
+            It "Loads config from local path" {
+                Read-CAMConfig | Should -Be $true
+            }
+            It "Validates JSON configuration" {
+                $Json = Get-Content -Raw -Path "$((Get-Item -Path ".\").FullName)\CAMConfig.json"
+                $Json.Remove(0,1) | Out-File "$((Get-Item -Path ".\").FullName)\CAMConfig.json"
+                $err = Read-CamConfig 2>&1
+                $Json | Out-File "$((Get-Item -Path ".\").FullName)\CAMConfig.json"
+                $err | Should -Be "Unable to read config at $((Get-Item -Path ".\").FullName)\CAMConfig.json, defaulting to hardcoded fallback values."
+            }
         }
     }
 }
