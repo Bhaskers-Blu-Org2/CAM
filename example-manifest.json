@@ -1,0 +1,13 @@
+{
+    "ModuleName": "string",
+	"Secrets":[{
+        "CertName":"",
+        "CertVersions":[{
+            "StoreLocation":"LocalMachine",
+            "StoreName":"My",
+			"Deploy": ["True"]
+        }
+        ]
+    }
+    ]
+}
