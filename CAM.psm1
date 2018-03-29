@@ -147,7 +147,7 @@ param(
             $Json = Get-Content -Raw -Path "$($Path)\CAMConfig.json" | ConvertFrom-Json
             # reset hardcoded fallback values
             $script:CAMConfig.AADApplicationID = $Json.AADApplicationId
-            $script:CAMConfig.AADApplicationkey = $Json.AADApplicationkey
+            $script:CAMConfig.AADApplicationkey = ($Json.AADApplicationkey | ConvertTo-SecureString -AsPlainText -Force)
             $script:CAMConfig.TenantId = $Json.TenantId
             $script:CAMConfig.KeyVaultCertificate = $Json.KeyVaultCertificate
             $script:CAMConfig.KeyVaultCertificatePassword = ($Json.KeyVaultCertificatePassword | ConvertTo-SecureString -AsPlainText -Force)
@@ -258,10 +258,10 @@ param(
     [parameter()]
     [PSTypeName("CAMConfig")]$CAMConfig = $script:CAMConfig,
     [parameter()]
-    [string]$key = $CAMConfig.AADApplicationKey
+    [SecureString]$key = $CAMConfig.AADApplicationKey
 )
     try {
-        $Credential = New-Object System.Management.Automation.PSCredential($CAMConfig.AADApplicationID, (ConvertTo-SecureString -String $Key -AsPlainText -Force))
+        $Credential = New-Object System.Management.Automation.PSCredential($CAMConfig.AADApplicationID, $key)
         Login-AzureRmAccount -Credential $Credential -Tenant $CAMConfig.TenantId -ServicePrincipal
     }
     catch {

@@ -164,7 +164,7 @@ Describe "Install-KVCertificates" {
     else {
         write-host "        No CAMConfig to test with" -ForegroundColor DarkGreen
     }
-    if (test-path ($Path -replace "\CAMConfig.json", "\localManifest.json"))
+    if (test-path ($Path -replace "\\CAMConfig.json", "\\localManifest.json"))
     {
         It "Reads manifest file from local path and installs certificates whitelisted" {
             Install-KVCertificates -LocalManifest ($Path -replace "\CAMConfig.json", "\localManifest.json")
