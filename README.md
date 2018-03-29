@@ -231,6 +231,15 @@ powershell.exe -executionpolicy Unrestricted -Command "Import-Module .\Cam.psm1;
 New-CamSchedule 
 ```
 
+# Unit Tests
+- To run unit tests on the CAM, open an administrator Powershell session in the directory the CAM is located in and run the following commands:
+```Powershell
+Install-Module -Name Pester
+Import-Module Pester
+Invoke-Pester -Path .\
+```
+- In order to run these unit tests you will need to have the CAMConfig.json filled out, and a valid Manifest.json in the configured KeyVault.
+
 # Contributing
 
 This project welcomes contributions and suggestions.  Most contributions require you to agree to a
