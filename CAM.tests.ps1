@@ -1,5 +1,5 @@
 param(
-    [switch]$CloudBuild
+    $CloudBuild
 )
 Import-Module "$((Get-Item -Path ".\").FullName)\Cam.psm1"
 Describe "New-CamConfig" {
