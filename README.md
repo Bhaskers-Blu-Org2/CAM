@@ -1,3 +1,7 @@
+# Certificate Allocation Module
+- CAM or certificate allocation module is a PowerShell module designed to facilitate the download and installation of certificates stored in Azure KeyVault primarily to production servers.
+- V0.0.2
+
 # Goals 
 - Support certificate auto renewal through Key Vault supported Certificate Authorities. 
 - Unify certificate download processes throughout multiple properties. 
@@ -16,7 +20,7 @@
 # CAM structure: 
 - CAM.psm1 – The PowerShell module that houses the CAM’s functionality. 
 - CAMConfig.json – The CAM’s configuration file. 
-- CAMAuth.cer – A certificate that the CAM uses to authenticate itself to AAD. 
+- CAMAuth.pfx – A certificate that the CAM uses to authenticate itself to AAD. 
 - KeyVault – An Azure KeyVault that houses all the certificates for a specific service.  
 - Manifest.json – A configuration file that is a whitelist of certificates to download to the VMs. 
 
