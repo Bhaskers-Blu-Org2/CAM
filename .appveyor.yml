@@ -10,9 +10,9 @@ test_script:
 
 deploy_script:
   - ps: if ($res.FailedCount -eq 0) { 
-      write-host "All Tests succeeded, deploying CAM to Powershell Gallery"  
-      $Path = (Get-Item -Path ".\").FullName
-      $manifest = Get-Content -Raw -Path "$Path\CAM.psd1"
-      $manifest = $manifest -replace "ModuleVersion = '0.0.1'" , "ModuleVersion = '$env:APPVEYOR_BUILD_ID'" | Out-File "$Path\CAM.psd1"
+      write-host "All Tests succeeded, deploying CAM to Powershell Gallery" ; 
+      $Path = (Get-Item -Path ".\").FullName ;
+      $manifest = Get-Content -Raw -Path "$Path\CAM.psd1" ;
+      $manifest = $manifest -replace "ModuleVersion = '0.0.1'" , "ModuleVersion = '$env:APPVEYOR_BUILD_ID'" | Out-File "$Path\CAM.psd1" ;
       write-host $manifest }
       #Publish-Module -Path $Path -NuGetApiKey $env:NugetKey 
