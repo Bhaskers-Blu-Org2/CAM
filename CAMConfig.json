@@ -1,5 +1,5 @@
 {
-  "AADApplicationId":"",
+  "AADApplicationId":"sample",
   "AADApplicationKey":"",
   "TenantId":"",
   "KeyVaultCertificate":"",
