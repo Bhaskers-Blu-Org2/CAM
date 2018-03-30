@@ -9,7 +9,4 @@ test_script:
   - ps: if ($res.FailedCount -gt 0) { throw "$($res.FailedCount) tests failed."}
 
 deploy_script:
-  - ps: if ($res.FailedCount -eq 0) {
-  - ps: write-host "All Tests succeeded, deploying CAM to Powershell Gallery"
-  - ps: Publish-Module -Name "CAM" -NuGetApiKey $env:NugetKey 
-  - ps: }
+  - ps: if ($res.FailedCount -eq 0) { write-host "All Tests succeeded, deploying CAM to Powershell Gallery" ; Publish-Module -Name "CAM" -NuGetApiKey $env:NugetKey }
