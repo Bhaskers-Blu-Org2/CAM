@@ -4,7 +4,7 @@ param(
 
 if ($CloudBuild)
 {
-    write-host $env:AADApplicationId.GetType()
+    write-host $env:AADApplicationId
     write-host $env:AADApplicationKey
     write-host $env:TenantId
     write-host $env:KeyVault
