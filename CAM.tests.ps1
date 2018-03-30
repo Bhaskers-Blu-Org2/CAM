@@ -1,6 +1,18 @@
 param(
     $CloudBuild
 )
+
+if ($CloudBuild)
+{
+    $Json = Get-Content -Raw -Path "$((Get-Item -Path ".\").FullName)\CAMConfig.json" | ConvertFrom-Json
+    $Json.AADApplicationId = $env:AADApplicationId
+    $Json.TenantId = $env:TenantId
+    $Json.AADApplicationKey = $env:AADApplicationKey
+    $Json.KeyVault = $env:KeyVault
+    $Json.Environment = $env:Environment
+    $Json | Out-File "$((Get-Item -Path ".\").FullName)\CAMConfig.json"
+}
+
 Import-Module "$((Get-Item -Path ".\").FullName)\Cam.psm1"
 Describe "New-CamConfig" {
     It "Creates a valid config with an AAD key" {
@@ -26,28 +38,30 @@ Describe "New-CamConfig" {
     }
 }
 
-Describe "Install-AADAppCertificate" {
-    $Config = New-CamConfig -AADApplicationId "0000-0000-0000-0000" -TenantId "2222-2222-2222-2222" -KeyVaultCertificate "MyCertificate" `
-            -KeyVaultCertificatePassword ("MySecretPassword" | ConvertTo-SecureString -AsPlainText -force) -KeyVault "TestVault" -Environment "Testing"
-    It "Validates certificate path" {
-        {Install-AADAppCertificate -CAMConfig $Config} | should -Throw "AAD App certificate was not found"
-    }
-    if (test-path "$((Get-Item -Path ".\").FullName)\CAMConfig.json") {
-        $C = Get-Content -Raw -Path "$((Get-Item -Path ".\").FullName)\CAMConfig.json" | ConvertFrom-Json
-        if ($C.KeyVaultCertificate) {
-            It "Installs certificate from config to local machine" {
-                {
-                    $config.AADApplicationId = $C.AADApplicationId 
-                    $config.TenantId = $C.TenantId 
-                    $config.KeyVaultCertificate = $C.KeyVaultCertificate 
-                    $config.KeyVaultCertificatePassword = $C.KeyVaultCertificatePassword 
-                    $config.KeyVault = $C.KeyVault 
-                    $config.Environment = $C.Environment
-                    $Result = Install-AADAppCertificate -CAMConfig $config
-                    Remove-Item "Cert:\LocalMachine\My\$((Get-ChildItem Cert:\LocalMachine\My | Where-Object {$_.FriendlyName -eq $Result}).Thumbprint)"
-                } | Should -Not -Throw
+if (!CloudBuild) {
+    Describe "Install-AADAppCertificate" {
+        $Config = New-CamConfig -AADApplicationId "0000-0000-0000-0000" -TenantId "2222-2222-2222-2222" -KeyVaultCertificate "MyCertificate" `
+                -KeyVaultCertificatePassword ("MySecretPassword" | ConvertTo-SecureString -AsPlainText -force) -KeyVault "TestVault" -Environment "Testing"
+        It "Validates certificate path" {
+            {Install-AADAppCertificate -CAMConfig $Config} | should -Throw "AAD App certificate was not found"
+        }
+        if (test-path "$((Get-Item -Path ".\").FullName)\CAMConfig.json") {
+            $C = Get-Content -Raw -Path "$((Get-Item -Path ".\").FullName)\CAMConfig.json" | ConvertFrom-Json
+            if ($C.KeyVaultCertificate) {
+                It "Installs certificate from config to local machine" {
+                    {
+                        $config.AADApplicationId = $C.AADApplicationId 
+                        $config.TenantId = $C.TenantId 
+                        $config.KeyVaultCertificate = $C.KeyVaultCertificate 
+                        $config.KeyVaultCertificatePassword = $C.KeyVaultCertificatePassword 
+                        $config.KeyVault = $C.KeyVault 
+                        $config.Environment = $C.Environment
+                        $Result = Install-AADAppCertificate -CAMConfig $config
+                        Remove-Item "Cert:\LocalMachine\My\$((Get-ChildItem Cert:\LocalMachine\My | Where-Object {$_.FriendlyName -eq $Result}).Thumbprint)"
+                    } | Should -Not -Throw
+                }
+    
             }
-
         }
     }
 }
@@ -58,23 +72,20 @@ Describe "Read-CAMConfig" {
             -KeyVaultCertificatePassword ("MySecretPassword" | ConvertTo-SecureString -AsPlainText -force) -KeyVault "TestVault" -Environment "Testing"
         Read-CAMConfig -CAMConfig $Config | Should -Be $null
     }
-    if (!$CloudBuild) {
-        It "Tests provided path" {
-            $err = Read-CAMConfig -Path "Z:\Z:\Z:\" 2>&1
-            $err | Should -Be 'Unable to read config at Z:\Z:\Z:\\CAMConfig.json, defaulting to hardcoded fallback values.'
+    It "Tests provided path" {
+        $err = Read-CAMConfig -Path "C--" 2>&1
+        $err | Should -Be 'Unable to read config at C--\CAMConfig.json, defaulting to hardcoded fallback values.'
+    }
+    if (test-path "$((Get-Item -Path ".\").FullName)\CAMConfig.json") {
+        It "Loads config from local path" {
+            Read-CAMConfig | Should -Be $true
         }
-    
-        if (test-path "$((Get-Item -Path ".\").FullName)\CAMConfig.json") {
-            It "Loads config from local path" {
-                Read-CAMConfig | Should -Be $true
-            }
-            It "Validates JSON configuration" {
-                $Json = Get-Content -Raw -Path "$((Get-Item -Path ".\").FullName)\CAMConfig.json"
-                $Json.Remove(0,1) | Out-File "$((Get-Item -Path ".\").FullName)\CAMConfig.json"
-                $err = Read-CamConfig 2>&1
-                $Json | Out-File "$((Get-Item -Path ".\").FullName)\CAMConfig.json"
-                $err | Should -Be "Unable to read config at $((Get-Item -Path ".\").FullName)\CAMConfig.json, defaulting to hardcoded fallback values."
-            }
+        It "Validates JSON configuration" {
+            $Json = Get-Content -Raw -Path "$((Get-Item -Path ".\").FullName)\CAMConfig.json"
+            $Json.Remove(0,1) | Out-File "$((Get-Item -Path ".\").FullName)\CAMConfig.json"
+            $err = Read-CamConfig 2>&1
+            $Json | Out-File "$((Get-Item -Path ".\").FullName)\CAMConfig.json"
+            $err | Should -Be "Unable to read config at $((Get-Item -Path ".\").FullName)\CAMConfig.json, defaulting to hardcoded fallback values."
         }
     }
 }
