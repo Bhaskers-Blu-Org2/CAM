@@ -4,6 +4,6 @@
   "TenantId":"",
   "KeyVaultCertificate":"",
   "KeyVaultCertificatePassword":"",
-  "KeyVault":"",
+  "KeyVault":"Sample",
   "Environment":""
 }
