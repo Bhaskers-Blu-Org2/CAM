@@ -14,7 +14,7 @@ if ($CloudBuild)
     $Json.AADApplicationKey = $env:AADApplicationKey.ToString()
     $Json.KeyVault = $env:KeyVault.ToString()
     $Json.Environment = $env:Environment.ToString()
-    #$Json | Out-File "$((Get-Item -Path ".\").FullName)\CAMConfig.json"
+    $Json | Out-File -FilePath "$((Get-Item -Path ".\").FullName)\CAMConfig.json"
     Write-Host (Get-Content -Raw -Path "$((Get-Item -Path ".\").FullName)\CAMConfig.json" | ConvertFrom-Json)
 }
 
