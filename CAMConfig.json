@@ -1,70 +1,9 @@
 {
-"AADApplicationId":"sample",
-"AADApplicationKey":"sample",
-"TenantId":"sample",
-"KeyVaultCertificate":"sample",
-"KeyVaultCertificatePassword":"sample",
-"KeyVault":"sample",
-"Environment":"sample"
+  "AADApplicationId":"",
+  "AADApplicationKey":"",
+  "TenantId":"",
+  "KeyVaultCertificate":"",
+  "KeyVaultCertificatePassword":"",
+  "KeyVault":"",
+  "Environment":""
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
