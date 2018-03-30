@@ -4,19 +4,13 @@ param(
 
 if ($CloudBuild)
 {
-    write-host $env:AADApplicationId
-    write-host $env:AADApplicationKey
-    write-host $env:TenantId
-    write-host $env:KeyVault
     $Json = Get-Content -Raw -Path "$((Get-Item -Path ".\").FullName)\CAMConfig.json" | ConvertFrom-Json
     $Json.AADApplicationId = "$env:AADApplicationId"
     $Json.TenantId = "$env:TenantId"
     $Json.AADApplicationKey = "$env:AADApplicationKey"
     $Json.KeyVault = "$env:KeyVault"
     $Json.Environment = "$env:Environment"
-    write-host $Json
     ($Json | ConvertTo-Json) | Out-File -FilePath "$((Get-Item -Path ".\").FullName)\CAMConfig.json"
-    Write-Host (Get-Content -Raw -Path "$((Get-Item -Path ".\").FullName)\CAMConfig.json" | ConvertFrom-Json)
 }
 
 Import-Module "$((Get-Item -Path ".\").FullName)\Cam.psm1"
@@ -96,17 +90,17 @@ Describe "Read-CAMConfig" {
     }
 }
 
-if (!$CloudBuild) {
-    Describe "New-CAMSchedule" {
-        if ("$((Get-Item -Path ".\").FullName)\CAM.psm1") {
-           It "Creates a scheduled task" {
-                New-CamSchedule
-                $task = Get-ScheduledTask | ?{ $_.TaskName -eq "CAM" } | Should -Be $true
-                Unregister-ScheduledTask -TaskName "CAM" -Confirm:$false
-           }
-        }
+
+Describe "New-CAMSchedule" {
+    if ("$((Get-Item -Path ".\").FullName)\CAM.psm1") {
+       It "Creates a scheduled task" {
+            New-CamSchedule
+            $task = Get-ScheduledTask | ?{ $_.TaskName -eq "CAM" } | Should -Be $true
+            Unregister-ScheduledTask -TaskName "CAM" -Confirm:$false
+       }
     }
 }
+
 
 Describe "Authenticate-WithUserProfile" {
     $Path = (Get-Item -Path ".\").FullName
@@ -143,63 +137,64 @@ If (!$CloudBuild) {
             write-host "        No CAMConfig to test with" -ForegroundColor DarkGreen
         }
     }
+}
 
-    Describe "Authenticate-WithKey" {
-        $path = "$((Get-Item -Path ".\").FullName)\CAMConfig.json"
-        if (test-path $Path) {
-            if (((Get-Content -Raw -Path $Path) | ConvertFrom-Json).AADApplicationKey) {
-                It "Authenticates with key" {
-                    Read-CAMConfig
-                    Authenticate-WithKey | Should -BeOfType [Microsoft.Azure.Commands.Profile.Models.PSAzureProfile]
-                    Logout-AzureRmAccount
-                }
-            }
-            else {
-                It "Validates input" {
-                    Read-CAMConfig
-                    { Authenticate-WithKey } | Should -Throw
-                }
-            }
-        }
-        else {
-            write-host "        No CAMConfig to test with" -ForegroundColor DarkGreen
-        }
-    }
-
-    Describe "Authenticate-ToKeyVault" {
-        $path = "$((Get-Item -Path ".\").FullName)\CAMConfig.json"
-        if (test-path $Path) {
-            It "Authenticates to KeyVault with certificate, key, or user profile" {
+Describe "Authenticate-WithKey" {
+    $path = "$((Get-Item -Path ".\").FullName)\CAMConfig.json"
+    if (test-path $Path) {
+        if (((Get-Content -Raw -Path $Path) | ConvertFrom-Json).AADApplicationKey) {
+            It "Authenticates with key" {
                 Read-CAMConfig
-                Authenticate-ToKeyVault | Should -BeOfType [Microsoft.Azure.Commands.Profile.Models.PSAzureProfile]
+                Authenticate-WithKey | Should -BeOfType [Microsoft.Azure.Commands.Profile.Models.PSAzureProfile]
                 Logout-AzureRmAccount
             }
         }
         else {
-            write-host "        No CAMConfig to test with" -ForegroundColor DarkGreen
+            It "Validates input" {
+                Read-CAMConfig
+                { Authenticate-WithKey } | Should -Throw
+            }
         }
     }
+    else {
+        write-host "        No CAMConfig to test with" -ForegroundColor DarkGreen
+    }
+}
+
+Describe "Authenticate-ToKeyVault" {
+    $path = "$((Get-Item -Path ".\").FullName)\CAMConfig.json"
+    if (test-path $Path) {
+        It "Authenticates to KeyVault with certificate, key, or user profile" {
+            Read-CAMConfig
+            Authenticate-ToKeyVault | Should -BeOfType [Microsoft.Azure.Commands.Profile.Models.PSAzureProfile]
+            Logout-AzureRmAccount
+        }
+    }
+    else {
+        write-host "        No CAMConfig to test with" -ForegroundColor DarkGreen
+    }
+}
 
 
-    Describe "Install-KVCertificates" {
-        $path = "$((Get-Item -Path ".\").FullName)\CAMConfig.json"
-        if (test-path $Path) {
-            It "Reads manifest file from the KeyVault and installs certificates whitelisted" {
-                Install-KVCertificates
-            }
+Describe "Install-KVCertificates" {
+    $path = "$((Get-Item -Path ".\").FullName)\CAMConfig.json"
+    if (test-path $Path) {
+        It "Reads manifest file from the KeyVault and installs certificates whitelisted" {
+            Install-KVCertificates
         }
-        else {
-            write-host "        No CAMConfig to test with" -ForegroundColor DarkGreen
+    }
+    else {
+        write-host "        No CAMConfig to test with" -ForegroundColor DarkGreen
+    }
+    if (test-path ($Path -replace "\\CAMConfig.json", "\\localManifest.json"))
+    {
+        It "Reads manifest file from local path and installs certificates whitelisted" {
+            Install-KVCertificates -LocalManifest ($Path -replace "\CAMConfig.json", "\localManifest.json")
         }
-        if (test-path ($Path -replace "\\CAMConfig.json", "\\localManifest.json"))
-        {
-            It "Reads manifest file from local path and installs certificates whitelisted" {
-                Install-KVCertificates -LocalManifest ($Path -replace "\CAMConfig.json", "\localManifest.json")
-            }
-            It "Reads manifest file from PSObject and installs certificates whitelisted" {
-                $json = Get-Content -Raw -Path ($Path -replace "\CAMConfig.json", "\localManifest.json")
-                Install-KVCertificates -Manifest $json
-            }
+        It "Reads manifest file from PSObject and installs certificates whitelisted" {
+            $json = Get-Content -Raw -Path ($Path -replace "\CAMConfig.json", "\localManifest.json")
+            Install-KVCertificates -Manifest $json
         }
     }
 }
+
