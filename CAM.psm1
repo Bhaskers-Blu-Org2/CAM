@@ -147,10 +147,14 @@ param(
             $Json = Get-Content -Raw -Path "$($Path)\CAMConfig.json" | ConvertFrom-Json
             # reset hardcoded fallback values
             $script:CAMConfig.AADApplicationID = $Json.AADApplicationId
-            $script:CAMConfig.AADApplicationkey = ($Json.AADApplicationkey | ConvertTo-SecureString -AsPlainText -Force)
+            if ($Json.AADApplicationkey) {
+                $script:CAMConfig.AADApplicationkey = ($Json.AADApplicationkey | ConvertTo-SecureString -AsPlainText -Force)
+            }
             $script:CAMConfig.TenantId = $Json.TenantId
             $script:CAMConfig.KeyVaultCertificate = $Json.KeyVaultCertificate
-            $script:CAMConfig.KeyVaultCertificatePassword = ($Json.KeyVaultCertificatePassword | ConvertTo-SecureString -AsPlainText -Force)
+            if ($Json.KeyVaultCertificatePassword) {
+                $script:CAMConfig.KeyVaultCertificatePassword = ($Json.KeyVaultCertificatePassword | ConvertTo-SecureString -AsPlainText -Force)
+            }
             $script:CAMConfig.KeyVault = $Json.KeyVault
             $script:CAMConfig.Environment = $Json.Environment
             return $true
