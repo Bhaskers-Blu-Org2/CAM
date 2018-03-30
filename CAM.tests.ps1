@@ -8,8 +8,9 @@ if ($CloudBuild)
     write-host $env:AADApplicationKey
     write-host $env:TenantId
     write-host $env:KeyVault
-    $Json = ((Get-Content -Raw -Path "$((Get-Item -Path ".\").FullName)\CAMConfig.json" | ConvertFrom-Json) | ConvertTo-Json) | ConvertFrom-Json
+    $Json = Get-Content -Raw -Path "$((Get-Item -Path ".\").FullName)\CAMConfig.json" | ConvertFrom-Json
     write-host $Json
+    write-host $Json.GetType()
     $Json.AADApplicationId = $env:AADApplicationId.ToString()
     $Json.TenantId = $env:TenantId.ToString()
     $Json.AADApplicationKey = $env:AADApplicationKey.ToString()
