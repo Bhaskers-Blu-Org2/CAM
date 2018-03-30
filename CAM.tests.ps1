@@ -90,17 +90,17 @@ Describe "Read-CAMConfig" {
     }
 }
 
-
-Describe "New-CAMSchedule" {
-    if ("$((Get-Item -Path ".\").FullName)\CAM.psm1") {
-       It "Creates a scheduled task" {
-            New-CamSchedule
-            $task = Get-ScheduledTask | ?{ $_.TaskName -eq "CAM" } | Should -Be $true
-            Unregister-ScheduledTask -TaskName "CAM" -Confirm:$false
-       }
+if (!$CloudBuild) {
+    Describe "New-CAMSchedule" {
+        if ("$((Get-Item -Path ".\").FullName)\CAM.psm1") {
+           It "Creates a scheduled task" {
+               New-CamSchedule
+               $task = Get-ScheduledTask | ?{ $_.TaskName -eq "CAM" } | Should -Be $true
+               Unregister-ScheduledTask -TaskName "CAM" -Confirm:$false
+           }
+        }
     }
 }
-
 
 Describe "Authenticate-WithUserProfile" {
     $Path = (Get-Item -Path ".\").FullName
