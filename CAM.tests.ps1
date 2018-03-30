@@ -146,7 +146,6 @@ Describe "Authenticate-WithKey" {
             It "Authenticates with key" {
                 Read-CAMConfig
                 Authenticate-WithKey | Should -BeOfType [Microsoft.Azure.Commands.Profile.Models.PSAzureProfile]
-                Logout-AzureRmAccount
             }
         }
         else {
@@ -167,7 +166,6 @@ Describe "Authenticate-ToKeyVault" {
         It "Authenticates to KeyVault with certificate, key, or user profile" {
             Read-CAMConfig
             Authenticate-ToKeyVault | Should -BeOfType [Microsoft.Azure.Commands.Profile.Models.PSAzureProfile]
-            Logout-AzureRmAccount
         }
     }
     else {
