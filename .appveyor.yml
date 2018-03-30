@@ -14,6 +14,5 @@ deploy_script:
       $Path = (Get-Item -Path ".\").FullName
       $manifest = Get-Content -Raw -Path "$Path\CAM.psd1"
       $manifest = $manifest -replace "ModuleVersion = '0.0.1'" , "ModuleVersion = '$env:APPVEYOR_BUILD_ID'" | Out-File "$Path\CAM.psd1"
-      write-host $manifest
-      #Publish-Module -Path $Path -NuGetApiKey $env:NugetKey
-    }
+      write-host $manifest }
+      #Publish-Module -Path $Path -NuGetApiKey $env:NugetKey 
