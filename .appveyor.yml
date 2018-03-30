@@ -12,9 +12,9 @@ deploy_script:
   - ps: if ($res.FailedCount -eq 0) { 
       write-host "All Tests succeeded, deploying CAM to Powershell Gallery" ; 
       $Path = (Get-Item -Path ".\").FullName ;
-      #Update-ModuleManifest -path "$Path\CAM.psd1" -RequiredModules @{ModuleName="AzureRm";"ModuleVersion"="5.4.1.0"};
       Test-ModuleManifest -Path "$Path\CAM.psd1";
       $manifest = Get-Content -Raw -Path "$Path\CAM.psd1" ;
       $manifest -replace "ModuleVersion = '0.0.1'" , "ModuleVersion = '$env:APPVEYOR_BUILD_VERSION'" | Out-File "$Path\CAM.psd1" ;}
+      #Update-ModuleManifest -path "$Path\CAM.psd1" -RequiredModules @{ModuleName="AzureRm";"ModuleVersion"="5.4.1.0"};
       #write-host (Test-ModuleManifest -Path "$Path\CAM.psd1").Version ;
       #Publish-Module -Path $Path -NuGetApiKey $env:NugetKey }
