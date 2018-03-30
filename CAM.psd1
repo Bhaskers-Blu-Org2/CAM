@@ -51,7 +51,7 @@ Description = 'CAM or certificate allocation module is a PowerShell module desig
 # ProcessorArchitecture = ''
 
 # Modules that must be imported into the global environment prior to importing this module
-RequiredModules = @(@{ModuleName = 'AzureRm'; ModuleVersion = '5.6.0.0'; })
+RequiredModules = @(@{ModuleName = 'AzureRm'; ModuleVersion = '5.6.0'; })
 
 # Assemblies that must be loaded prior to importing this module
 # RequiredAssemblies = @()
