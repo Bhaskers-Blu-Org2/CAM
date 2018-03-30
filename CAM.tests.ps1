@@ -4,6 +4,10 @@ param(
 
 if ($CloudBuild)
 {
+    write-host $env:AADApplicationId
+    write-host $env:AADApplicationKey
+    write-host $env:TenantId
+    write-host $env:KeyVault
     $Json = Get-Content -Raw -Path "$((Get-Item -Path ".\").FullName)\CAMConfig.json" | ConvertFrom-Json
     $Json.AADApplicationId = $env:AADApplicationId
     $Json.TenantId = $env:TenantId
