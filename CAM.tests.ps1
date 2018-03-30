@@ -38,7 +38,7 @@ Describe "New-CamConfig" {
     }
 }
 
-if (!CloudBuild) {
+if (!$CloudBuild) {
     Describe "Install-AADAppCertificate" {
         $Config = New-CamConfig -AADApplicationId "0000-0000-0000-0000" -TenantId "2222-2222-2222-2222" -KeyVaultCertificate "MyCertificate" `
                 -KeyVaultCertificatePassword ("MySecretPassword" | ConvertTo-SecureString -AsPlainText -force) -KeyVault "TestVault" -Environment "Testing"
