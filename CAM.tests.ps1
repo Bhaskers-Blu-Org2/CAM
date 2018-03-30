@@ -11,6 +11,7 @@ if ($CloudBuild)
     $Json.KeyVault = $env:KeyVault
     $Json.Environment = $env:Environment
     $Json | Out-File "$((Get-Item -Path ".\").FullName)\CAMConfig.json"
+    write-host (Get-Content -Raw -Path "$((Get-Item -Path ".\").FullName)\CAMConfig.json" | ConvertFrom-Json)
 }
 
 Import-Module "$((Get-Item -Path ".\").FullName)\Cam.psm1"
