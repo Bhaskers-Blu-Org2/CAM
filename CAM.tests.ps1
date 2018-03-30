@@ -11,11 +11,11 @@ if ($CloudBuild)
     $Json = Get-Content -Raw -Path "$((Get-Item -Path ".\").FullName)\CAMConfig.json" | ConvertFrom-Json
     $Json.AADApplicationId = "$env:AADApplicationId"
     $Json.TenantId = "$env:TenantId"
-    #$Json.AADApplicationKey = "$env:AADApplicationKey"
+    $Json.AADApplicationKey = "$env:AADApplicationKey"
     $Json.KeyVault = "$env:KeyVault"
     $Json.Environment = "$env:Environment"
     write-host $Json
-    $Json | Out-File -FilePath "$((Get-Item -Path ".\").FullName)\CAMConfig.json"
+    ($Json | ConvertTo-Json) | Out-File -FilePath "$((Get-Item -Path ".\").FullName)\CAMConfig.json"
     Write-Host (Get-Content -Raw -Path "$((Get-Item -Path ".\").FullName)\CAMConfig.json" | ConvertFrom-Json)
 }
 
