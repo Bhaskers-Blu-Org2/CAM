@@ -15,7 +15,7 @@ deploy_script:
       Install-Module AzureRm;
       $manifest = Get-Content -Raw -Path "$Path\CAM.psd1" ;
       $manifest -replace "ModuleVersion = '0.0.1'" , "ModuleVersion = '$env:APPVEYOR_BUILD_VERSION'" | Out-File "$Path\CAM.psd1";
-      New-Directory -Item directory -Path "$Path\publish";
+      New-Item -ItemType directory -Path "$Path\publish";
       Copy-Item "$Path\CAM.psd1" -Destination "$Path\publish";
       Copy-Item "$Path\CAM.psm1" -Destination "$Path\publish";
       Copy-Item "$Path\CAM.tests.ps1" -Destination "$Path\publish";
