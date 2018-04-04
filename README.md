@@ -6,17 +6,17 @@
 - Unify certificate download processes throughout multiple properties. 
 - Allow properties to decouple certificate deployment and code deployment. 
 
-# Auto renewal overview: 
+# Auto renewal overview
 - A certificate in the KeyVault reaches a pre-determined point in its lifetime where it is configured to make a request to SSLAdmin for renewal. 
 - The certificate is renewed by SSLAdmin and put into the KeyVault.  
 
-# Certificate download overview: 
+# Certificate download overview
 - The CAM is run either during deployment of a new VM, or periodically through a scheduled task. 
 - The CAM fetches its relevant manifest JSON file from the KeyVault. 
 - The CAM reads the manifest and downloads all the certificates listed by default unless otherwise specified in the “deploy” property.  
 - The CAM deletes certificates from the machine with the “deploy” property set to “false”. 
 
-# CAM structure: 
+# CAM structure
 - CAM.psm1 – The PowerShell module that houses the CAM’s functionality. 
 - CAMConfig.json – The CAM’s configuration file. 
 - CAMAuth.pfx – A certificate that the CAM uses to authenticate itself to AAD. 
