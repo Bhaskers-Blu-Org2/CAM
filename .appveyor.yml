@@ -15,7 +15,9 @@ deploy_script:
       Install-Module AzureRm;
       $manifest = Get-Content -Raw -Path "$Path\CAM.psd1" ;
       $manifest -replace "ModuleVersion = '0.0.1'" , "ModuleVersion = '$env:APPVEYOR_BUILD_VERSION'" | Out-File "$Path\CAM.psd1";
-      Remove-Item "$Path\.git";
+      Remove-Item "$Path\.git\*";
+      Remove-Item "$Path\TestsResults.xml"
+      Remove-Item "$Path\.appveyor.yml"
       Remove-Item "$Path\.gitignore";
       Remove-Item "$Path\CAMConfig.json";
       Remove-Item "$Path\README.md";
