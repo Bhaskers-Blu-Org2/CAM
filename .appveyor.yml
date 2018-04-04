@@ -15,11 +15,10 @@ deploy_script:
       Install-Module AzureRm;
       $manifest = Get-Content -Raw -Path "$Path\CAM.psd1" ;
       $manifest -replace "ModuleVersion = '0.0.1'" , "ModuleVersion = '$env:APPVEYOR_BUILD_VERSION'" | Out-File "$Path\CAM.psd1";
-      New-Item -ItemType directory -Path "$Path\publish";
-      Copy-Item "$Path\CAM.psd1" -Destination "$Path\publish";
-      Copy-Item "$Path\CAM.psm1" -Destination "$Path\publish";
-      Copy-Item "$Path\CAM.tests.ps1" -Destination "$Path\publish";
-      Copy-Item "$Path\PSScriptAnalyzerSettings.psd1" -Destination "$Path\publish";
-      Copy-Item "$Path\LICENSE" -Destination "$Path\publish";
-      Publish-Module -Path "C:\projects\cam\publish" -NuGetApiKey $env:NugetKey;
-      write-host "Published module with version $env:APPVEYOR_BUILD_VERSION"}
+      Remove-Item "$Path\.git";
+      Remove-Item "$Path\.gitignore";
+      Remove-Item "$Path\CAMConfig.json";
+      Remove-Item "$Path\README.md";
+      Remove-Item "$Path\example-manifest.json";
+      try{Publish-Module -Path $Path -NuGetApiKey $env:NugetKey;
+      write-host "Published module with version $env:APPVEYOR_BUILD_VERSION"}Catch{ throw "Publish Failed"}}
