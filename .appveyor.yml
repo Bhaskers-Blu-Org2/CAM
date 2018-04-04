@@ -21,6 +21,6 @@ deploy_script:
       Copy-Item "$Path\CAM.tests.ps1" -Destination "$Path\publish";
       Copy-Item "$Path\PSScriptAnalyzerSettings.psd1" -Destination "$Path\publish";
       Copy-Item "$Path\LICENSE" -Destination "$Path\publish";
-      Get-ChildItem "$Path\publish"
+      Get-ChildItem "$Path\publish";
       Publish-Module -Path "$Path\publish\CAM.psd1" -NuGetApiKey $env:NugetKey;
       write-host "Published module with version $env:APPVEYOR_BUILD_VERSION"}
