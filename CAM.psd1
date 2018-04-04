@@ -92,7 +92,7 @@ AliasesToExport = @()
 # ModuleList = @()
 
 # List of all files packaged with this module
-FileList = 'CAM.psm1'
+FileList = @('CAM.psm1','CAM.psd1','CAM.tests.ps1','PSScriptAnalyzerSettings.psd1','LICENSE')
 
 # Private data to pass to the module specified in RootModule/ModuleToProcess. This may also contain a PSData hashtable with additional module metadata used by PowerShell.
 PrivateData = @{
