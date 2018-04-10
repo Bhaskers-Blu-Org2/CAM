@@ -329,6 +329,26 @@ Invoke-Pester -Path .\
 ```
 - In order to run these unit tests you will need to have the CAMConfig.json filled out, and a valid Manifest.json in the configured KeyVault.
 
+# Sample Output
+- The CAM will output the result of the certificate operations it carries out.
+- You can route the CAM's output to a text file using the `>` operator in powershell. 
+- Below is a sample of output returned from the CAM:
+```Powershell
+CAM: Config loaded
+CAM: Authenticated to KeyVault
+CAM: Manifest loaded
+CAM: Installing Certificate: PSModuleTest
+CAM: Installed Certificate PSModuleTest to LocalMachine\My store
+CAM: Installing Certificate: primarytest
+CAM: Installed Certificate primarytest to LocalMachine\My store
+CAM: Installing Certificate: secondarytest
+CAM: Certificate secondarytest does not exist in MySecretKeyVault KeyVault
+CAM: Installing Certificate: thirdtest
+CAM: Certificate thirdtest could not be imported with password. Exception: [exception data]
+CAM: Deleting Certificate: fourthtest
+CAM: Certificate fourthtest deleted from LocalMachine\My store
+```
+
 # Version + Updates
 **1.1** Including the StoreName and StoreLocation property is no longer required in the Manifest.json. If it is not provided, the module will default to downloading the certificate to the LocalMachine\My store.
 
