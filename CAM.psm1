@@ -476,7 +476,7 @@ param(
     $Store.Open("MaxAllowed")
     $Store.Add($Cert.Certificate)
     $Store.Close()
-    write-output "CAM: Installed Certificate $($CertName) to $CertStoreName\$CertStoreLocation"
+    write-output "CAM: Installed Certificate $($CertName) to $CertStoreLocation\$CertStoreName store"
 }
 
 <#
@@ -536,7 +536,7 @@ param(
     $Store.Add($Pfx)
     $Store.Close()
     $Pfx.Dispose()
-    write-output "CAM: Installed Certificate $($CertName) to $CertStoreName\$CertStoreLocation store"
+    write-output "CAM: Installed Certificate $($CertName) to $CertStoreLocation\$CertStoreName store"
 }
 
 <# 
