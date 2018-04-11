@@ -471,7 +471,7 @@ param(
     [parameter()]
     [string]$CertStoreLocation = "LocalMachine",
     [parameter()]
-    [PSTypeName("CAMConfig")]$CAMConfig = $script:CAMConfig
+    $CAMConfig = $script:CAMConfig
 )
     if ($CertVersion) {
     	$Cert = Get-AzureKeyVaultCertificate -VaultName $CAMConfig.KeyVault -Name $CertName -Version $CertVersion
@@ -522,7 +522,7 @@ param(
     [parameter()]
     [string]$CertStoreLocation = "LocalMachine",
     [parameter()]
-    [PSTypeName("CAMConfig")]$CAMConfig = $script:CAMConfig
+    $CAMConfig = $script:CAMConfig
 )
     if ($CertVersion) {
     	$Secret = Get-PrivateKeyVaultCert -CertName $CertName -CertVersion $CertVersion -CAMConfig $CamConfig
