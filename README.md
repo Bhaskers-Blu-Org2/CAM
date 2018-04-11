@@ -41,6 +41,7 @@
 - If the "Version" property is omitted, it defaults to the newest version. 
 - If the "StoreName" property is omitted, it defaults to "My".
 - If the "StoreLocation" property is omitted, it defaults to "LocalMachine".
+- If you need to grant permissions to another user to access the certificate, use the "GrantAccess" property.
 - You can validate your manifest against the schema using [this tool](https://www.jsonschemavalidator.net/).
 
 Once your Manifest.json is created, upload it to the KeyVault as a Secret object. Make sure to name the secret in the following way: {KeyVaultName}-Manifest 
@@ -73,7 +74,8 @@ Install-KVCertificates -LocalManifest $PathToMyLocalManifest
                             "properties":{ 
                                 "CertVersion": { "type":"string" }, 
                                 "StoreLocation": { "type":"string" }, 
-                                "StoreName": { "type":"string" }, 
+                                "StoreName": { "type":"string" },
+                                "GrantAccess": { "type":"string" }, 
                                 "Deploy" : {  
                                     "type": "array", 
                                     "items":{ 
@@ -104,6 +106,7 @@ Install-KVCertificates -LocalManifest $PathToMyLocalManifest
                                 "CertVersion": { "type":"string" }, 
                                 "StoreLocation": { "type":"string" }, 
                                 "StoreName": { "type":"string" }, 
+                                "GrantAccess": { "type":"string" }, 
                                 "Deploy" : {  
                                     "type": "array", 
                                     "items":{ 
@@ -134,6 +137,7 @@ Install-KVCertificates -LocalManifest $PathToMyLocalManifest
             "CertVersion":"b1991678f69a4349a5b7840c0ed8e2c2", 
             "StoreLocation": "LocalMachine", 
             "StoreName": "My", 
+            "GrantAccess":"Network Service",
             "Deploy": ["True"] 
         } 
         ] 
