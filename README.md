@@ -350,6 +350,8 @@ CAM: Certificate fourthtest deleted from LocalMachine\My store
 ```
 
 # Version + Updates
+**1.2** New function added "Grant-CertificateAccess" which grants certificate private key permissions to the supplied user. Adding the property "GrantAccess" in the manifest.json will trigger this function after certificate download. for example `"GrantAccess":"Network Service"`
+
 **1.1** Including the StoreName and StoreLocation property is no longer required in the Manifest.json. If it is not provided, the module will default to downloading the certificate to the LocalMachine\My store.
 
 **1.0** Initial release.
