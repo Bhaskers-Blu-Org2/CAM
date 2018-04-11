@@ -476,7 +476,12 @@ param(
     if (!(LoggedIn -CAMConfig $CAMConfig)) {
         AuthenticateToKeyVault -CAMConfig $CAMConfig
     }
-    $Cert = Get-AzureKeyVaultCertificate -VaultName $CAMConfig.KeyVault -Name $CertName -Version $CertVersion
+    if ($CertVersion) {
+    	$Cert = Get-AzureKeyVaultCertificate -VaultName $CAMConfig.KeyVault -Name $CertName -Version $CertVersion
+    }
+    else {
+    	$Cert = Get-AzureKeyVaultCertificate -VaultName $CAMConfig.KeyVault -Name $CertName
+    }
     if (-not $Cert) {
         write-output "CAM: Certificate $($certName) does not exist in $($CAMConfig.KeyVault) KeyVault"
         return
@@ -522,7 +527,12 @@ param(
     [parameter()]
     [PSTypeName("CAMConfig")]$CAMConfig = $script:CAMConfig
 )
-    $Secret = Get-PrivateKeyVaultCert -CertName $CertName -CertVersion $CertVersion -CAMConfig $CamConfig
+    if ($CertVersion) {
+    	$Secret = Get-PrivateKeyVaultCert -CertName $CertName -CertVersion $CertVersion -CAMConfig $CamConfig
+    }
+    else {
+    	$Secret = Get-PrivateKeyVaultCert -CertName $CertName -CAMConfig $CamConfig
+    }
     if (-not $Secret) {
         write-output "CAM: Certificate $($certName) does not exist in $($CAMConfig.KeyVault) KeyVault"
         return
@@ -570,8 +580,12 @@ param(
     [parameter()]
     [PSTypeName("CAMConfig")]$CAMConfig = $script:CAMConfig
 )
-    $Secret = Get-AzureKeyVaultSecret -VaultName $CAMConfig.KeyVault -Name $CertName -Version $CertVersion
-    return $Secret
+    if ($CertVersion) {
+    	return Get-AzureKeyVaultSecret -VaultName $CAMConfig.KeyVault -Name $CertName -Version $CertVersion
+    }
+    else {
+    	return Get-AzureKeyVaultSecret -VaultName $CAMConfig.KeyVault -Name $CertName
+    }
 }
 
 <# 
