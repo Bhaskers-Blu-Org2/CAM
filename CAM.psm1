@@ -240,7 +240,7 @@ param(
 )
     try {
         $KeyVaultCertificateThumbprint = (Get-ChildItem Cert:\LocalMachine\My | Where-Object {$_.FriendlyName -match $CAMConfig.KeyVaultCertificate}).Thumbprint
-        Login-AzureRmAccount -ServicePrincipal -CertificateThumbprint $KeyVaultCertificateThumbprint -ApplicationId $CAMConfig.AADApplicationID -TenantId $CAMConfig.TenantId
+        Login-AzureRmAccount -ServicePrincipal -CertificateThumbprint $KeyVaultCertificateThumbprint -ApplicationId $CAMConfig.AADApplicationID -TenantId $CAMConfig.TenantId -ErrorAction Stop
     }
     catch {
         throw "Unable to login with Certificate $($CAMConfig.KeyVaultCertificate). Error: $_"
@@ -266,7 +266,7 @@ param(
 )
     try {
         $Credential = New-Object System.Management.Automation.PSCredential($CAMConfig.AADApplicationID, $key)
-        Login-AzureRmAccount -Credential $Credential -Tenant $CAMConfig.TenantId -ServicePrincipal
+        Login-AzureRmAccount -Credential $Credential -Tenant $CAMConfig.TenantId -ServicePrincipal -ErrorAction Stop
     }
     catch {
         throw "Unable to login with Key. Error: $_"
@@ -386,6 +386,11 @@ param(
                         write-output "CAM: Installing Certificate: $($CertificateName)"
                         Install-KVCertificateObject -CertName $CertificateName -CertVersion $CertificateVersion.CertVersion `
                             -CertStoreName $CertificateVersion.StoreName -CertStoreLocation $CertificateVersion.StoreLocation
+                        # Grant user access to private keys
+                        if ($null -ne $CertificateVersion.GrantAccess) {
+                            Grant-CertificateAccess -CertName $CertificateName -User $CertificateVersion.GrantAccess -CertStoreName $CertificateVersion.StoreName `
+                            -CertStoreLocation $CertificateVersion.StoreLocation
+                        }
                         $downloaded = $true
                     }
                 }
@@ -414,6 +419,11 @@ param(
                         write-output "CAM: Installing Certificate: $($CertificateName)"
                         Install-KVSecretObject -CertName $CertificateName -CertVersion $CertificateVerion.CertVersion `
                             -CertStoreName $CertificateVersion.StoreName -CertStoreLocation $CertificateVersion.StoreLocation -CAMConfig $CAMConfig
+                        # Grant user access to private keys
+                        if ($null -ne $CertificateVersion.GrantAccess) {
+                            Grant-CertificateAccess -CertName $CertificateName -User $CertificateVersion.GrantAccess -CertStoreName $CertificateVersion.StoreName `
+                            -CertStoreLocation $CertificateVersion.StoreLocation
+                        }
                         $download = $true
                     }
                 }
@@ -476,7 +486,7 @@ param(
     $Store.Open("MaxAllowed")
     $Store.Add($Cert.Certificate)
     $Store.Close()
-    write-output "CAM: Installed Certificate $($CertName) to $CertStoreLocation\$CertStoreName store"
+    write-output "CAM: Installed Certificate $($CertName) to $CertStoreLocation\$CertStoreName"
 }
 
 <#
@@ -620,6 +630,56 @@ param(
     }
 }
 
+
+<# 
+.SYNOPSIS
+    This function grants access to a supplied user for a certificates private key.
+.DESCRIPTION
+    This function grants access to a supplied user (defaulted to Network Service) for a certificates private key.
+.PARAMETER CertName
+    The friendly name of the certificate you would like to remove.
+.PARAMETER User
+    (optional) The user you want to give access to.
+.PARAMETER CertStoreName
+    The store name where the certificate is installed.
+.PARAMETER CertStoreLocation
+    The store location where the certificate is installed.
+.EXAMPLE
+    C:\PS> Grant-CertificateAccess -CertName "MyCertificate" -User "Network Service" -CertStoreLocation "LocalMachine" -CertStoreName "My"
+#>
+function Grant-CertificateAccess() {
+param(
+    [parameter(mandatory=$true)]
+    [string]$CertName,
+    [parameter()]
+    [string]$User = "Network Service",
+    [parameter()]
+    [string]$CertStoreName = "My",
+    [parameter()]
+    [string]$CertStoreLocation = "LocalMachine"
+
+)
+    $Certificate = (Get-ChildItem "Cert:\$CertStoreLocation\$CertStoreName" | Where-Object {$_.FriendlyName -match $CertName}).PrivateKey.CspKeyContainerInfo.UniqueKeyContainerName
+    if ($Certificate) {
+        $keyPath = "C:\ProgramData\Microsoft\Crypto\RSA\MachineKeys\"
+        $fullpath = $keypath+$obj
+        $acl=Get-Acl -Path $fullPath
+        $permission=$User, "Read", "Allow"
+        $accessRule=new-object System.Security.AccessControl.FileSystemAccessRule $permission
+        $acl.AddAccessRule($accessRule)
+        try {
+            Set-Acl $fullPath $acl
+            Write-Output "CAM: Granted access to $User for certificate $CertName in $CertStoreLocation\$CertStoreName store."
+        }
+        catch {
+            Write-Output "CAM: Unable to grant access to $User for certificate $CertName in $CertStoreLocation\$CertStoreName store. Exception: $_"
+        }
+    }
+    else {
+        Write-Output "CAM: Unable to locate certificate $CertName in $CertStoreLocation\$CertStoreName store"
+    }
+}
+
 <# 
 .SYNOPSIS
     This function retrieves a thumbprint from a secret object.
@@ -697,6 +757,8 @@ Export-ModuleMember -Function Authenticate-WithUserProfile
 Export-ModuleMember -Function Authenticate-WithCertificate
 Export-ModuleMember -Function Authenticate-WithKey
 Export-ModuleMember -Function Authenticate-ToKeyVault
+
+Export-ModuleMember -Function Grant-CertificateAccess
 
 Export-ModuleMember -Function Install-KVCertificates
 Export-ModuleMember -Function Install-KVCertificateObject
