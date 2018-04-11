@@ -473,9 +473,6 @@ param(
     [parameter()]
     [PSTypeName("CAMConfig")]$CAMConfig = $script:CAMConfig
 )
-    if (!(LoggedIn -CAMConfig $CAMConfig)) {
-        AuthenticateToKeyVault -CAMConfig $CAMConfig
-    }
     if ($CertVersion) {
     	$Cert = Get-AzureKeyVaultCertificate -VaultName $CAMConfig.KeyVault -Name $CertName -Version $CertVersion
     }
