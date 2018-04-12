@@ -679,7 +679,7 @@ param(
     [parameter(mandatory=$true)]
     [string]$CertName,
     [parameter()]
-    [string]$User = "Network Service",
+    [string]$User = "NT AUTHORITY\NETWORK SERVICE",
     [parameter()]
     [string]$CertStoreName = "My",
     [parameter()]
@@ -689,7 +689,7 @@ param(
     $Certificate = (Get-ChildItem "Cert:\$CertStoreLocation\$CertStoreName" | Where-Object {$_.FriendlyName -match $CertName}).PrivateKey.CspKeyContainerInfo.UniqueKeyContainerName
     if ($Certificate) {
         $keyPath = "C:\ProgramData\Microsoft\Crypto\RSA\MachineKeys\"
-        $fullpath = $keypath+$obj
+        $fullpath = $keypath+$Certificate
         $acl=Get-Acl -Path $fullPath
         $permission=$User, "Read", "Allow"
         $accessRule=new-object System.Security.AccessControl.FileSystemAccessRule $permission
