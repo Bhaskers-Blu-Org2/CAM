@@ -409,6 +409,10 @@ param(
         foreach ($Secret in $json.Secrets) {
             $CertificateName = $Secret.CertName
             $CertificateVersions = $Secret.CertVersions
+	    $Unstructured = $false
+            if ($Secret.Unstructured) {
+                $Unstructured = $true
+            }
             # Iterate through Certificate versions
             foreach ($CertificateVersion in $CertificateVersions) {
                 $download = $false
@@ -418,7 +422,7 @@ param(
                         # Install Certificate
                         write-output "CAM: Installing Certificate: $($CertificateName)"
                         Install-KVSecretObject -CertName $CertificateName -CertVersion $CertificateVerion.CertVersion `
-                            -CertStoreName $CertificateVersion.StoreName -CertStoreLocation $CertificateVersion.StoreLocation -CAMConfig $CAMConfig
+                            -CertStoreName $CertificateVersion.StoreName -CertStoreLocation $CertificateVersion.StoreLocation -Unstructured $Unstructured -CAMConfig $CAMConfig
                         # Grant user access to private keys
                         if ($null -ne $CertificateVersion.GrantAccess) {
                             Grant-CertificateAccess -CertName $CertificateName -User $CertificateVersion.GrantAccess -CertStoreName $CertificateVersion.StoreName `
@@ -522,7 +526,9 @@ param(
     [parameter()]
     [string]$CertStoreLocation = "LocalMachine",
     [parameter()]
-    $CAMConfig = $script:CAMConfig
+    $CAMConfig = $script:CAMConfig,
+    [parameter()]
+    [bool]$Unstructured = $false
 )
     if ($CertVersion) {
     	$Secret = Get-PrivateKeyVaultCert -CertName $CertName -CertVersion $CertVersion -CAMConfig $CamConfig
@@ -534,14 +540,24 @@ param(
         write-output "CAM: Certificate $($certName) does not exist in $($CAMConfig.KeyVault) KeyVault"
         return
     }
-    $KvSecretBytes = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($Secret.SecretValueText))
-    $CertJson = $KvSecretBytes | ConvertFrom-Json
-    $Password = $CertJson.password
-    $CertBytes = [System.Convert]::FromBase64String($CertJson.data)
+    if ($Unstructured) {
+        $CertBytes = [Convert]::FromBase64String($Secret.SecretValueText)
+    }
+    else {
+        $KvSecretBytes = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($Secret.SecretValueText))
+        $CertJson = $KvSecretBytes | ConvertFrom-Json
+        $Password = $CertJson.password
+        $CertBytes = [System.Convert]::FromBase64String($CertJson.data)
+    }
 
     $Pfx = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2
     try {
-        $Pfx.Import($CertBytes, $Password, "PersistKeySet")
+        if ($Unstructured) {
+            $Pfx.Import($CertBytes)
+        }
+        else {
+            $Pfx.Import($CertBytes, $Password, "PersistKeySet")
+        }
     }
     catch {
         write-output "CAM: Certificate $Certname could not be imported with password. Exception: $_"
