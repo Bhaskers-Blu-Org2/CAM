@@ -409,6 +409,10 @@ param(
         foreach ($Secret in $json.Secrets) {
             $CertificateName = $Secret.CertName
             $CertificateVersions = $Secret.CertVersions
+            $Unstructured = $false
+            if ($Secret.Unstructured) {
+                $Unstructured = $true
+            }
             # Iterate through Certificate versions
             foreach ($CertificateVersion in $CertificateVersions) {
                 $download = $false
@@ -418,7 +422,7 @@ param(
                         # Install Certificate
                         write-output "CAM: Installing Certificate: $($CertificateName)"
                         Install-KVSecretObject -CertName $CertificateName -CertVersion $CertificateVerion.CertVersion `
-                            -CertStoreName $CertificateVersion.StoreName -CertStoreLocation $CertificateVersion.StoreLocation -CAMConfig $CAMConfig
+                            -CertStoreName $CertificateVersion.StoreName -CertStoreLocation $CertificateVersion.StoreLocation -CAMConfig $CAMConfig -Unstructured $Unstructured
                         # Grant user access to private keys
                         if ($null -ne $CertificateVersion.GrantAccess) {
                             Grant-CertificateAccess -CertName $CertificateName -User $CertificateVersion.GrantAccess -CertStoreName $CertificateVersion.StoreName `
@@ -471,14 +475,12 @@ param(
     [parameter()]
     [string]$CertStoreLocation = "LocalMachine",
     [parameter()]
-    $CAMConfig = $script:CAMConfig
+    [PSTypeName("CAMConfig")]$CAMConfig = $script:CAMConfig
 )
-    if ($CertVersion) {
-    	$Cert = Get-AzureKeyVaultCertificate -VaultName $CAMConfig.KeyVault -Name $CertName -Version $CertVersion
+    if (!(LoggedIn -CAMConfig $CAMConfig)) {
+        AuthenticateToKeyVault -CAMConfig $CAMConfig
     }
-    else {
-    	$Cert = Get-AzureKeyVaultCertificate -VaultName $CAMConfig.KeyVault -Name $CertName
-    }
+    $Cert = Get-AzureKeyVaultCertificate -VaultName $CAMConfig.KeyVault -Name $CertName -Version $CertVersion
     if (-not $Cert) {
         write-output "CAM: Certificate $($certName) does not exist in $($CAMConfig.KeyVault) KeyVault"
         return
@@ -522,26 +524,33 @@ param(
     [parameter()]
     [string]$CertStoreLocation = "LocalMachine",
     [parameter()]
-    $CAMConfig = $script:CAMConfig
+    [PSTypeName("CAMConfig")]$CAMConfig = $script:CAMConfig,
+    [parameter()]
+    [bool]$Unstructured = $false
 )
-    if ($CertVersion) {
-    	$Secret = Get-PrivateKeyVaultCert -CertName $CertName -CertVersion $CertVersion -CAMConfig $CamConfig
-    }
-    else {
-    	$Secret = Get-PrivateKeyVaultCert -CertName $CertName -CAMConfig $CamConfig
-    }
+    $Secret = Get-PrivateKeyVaultCert -CertName $CertName -CertVersion $CertVersion -CAMConfig $CamConfig
     if (-not $Secret) {
         write-output "CAM: Certificate $($certName) does not exist in $($CAMConfig.KeyVault) KeyVault"
         return
     }
-    $KvSecretBytes = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($Secret.SecretValueText))
-    $CertJson = $KvSecretBytes | ConvertFrom-Json
-    $Password = $CertJson.password
-    $CertBytes = [System.Convert]::FromBase64String($CertJson.data)
+    if ($Unstructured) {
+        $CertBytes = [Convert]::FromBase64String($Secret.SecretValueText)
+    }
+    else {
+        $KvSecretBytes = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($Secret.SecretValueText))
+        $CertJson = $KvSecretBytes | ConvertFrom-Json
+        $Password = $CertJson.password
+        $CertBytes = [System.Convert]::FromBase64String($CertJson.data)
+    }
 
     $Pfx = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2
     try {
-        $Pfx.Import($CertBytes, $Password, "PersistKeySet")
+        if ($Unstructured) {
+            $Pfx.Import($CertBytes)
+        }
+        else {
+            $Pfx.Import($CertBytes, $Password, "PersistKeySet")
+        }
     }
     catch {
         write-output "CAM: Certificate $Certname could not be imported with password. Exception: $_"
@@ -577,12 +586,8 @@ param(
     [parameter()]
     [PSTypeName("CAMConfig")]$CAMConfig = $script:CAMConfig
 )
-    if ($CertVersion) {
-    	return Get-AzureKeyVaultSecret -VaultName $CAMConfig.KeyVault -Name $CertName -Version $CertVersion
-    }
-    else {
-    	return Get-AzureKeyVaultSecret -VaultName $CAMConfig.KeyVault -Name $CertName
-    }
+    $Secret = Get-AzureKeyVaultSecret -VaultName $CAMConfig.KeyVault -Name $CertName -Version $CertVersion
+    return $Secret
 }
 
 <# 
