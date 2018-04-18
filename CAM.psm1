@@ -679,23 +679,23 @@ param(
     [parameter(mandatory=$true)]
     [string]$CertName,
     [parameter()]
-    [string]$User = "NT AUTHORITY\NETWORK SERVICE",
+    [string]$User = "Network Service",
     [parameter()]
     [string]$CertStoreName = "My",
     [parameter()]
     [string]$CertStoreLocation = "LocalMachine"
 
 )
-    $Certificate = (Get-ChildItem "Cert:\$CertStoreLocation\$CertStoreName" | Where-Object {$_.FriendlyName -match $CertName}).PrivateKey.CspKeyContainerInfo.UniqueKeyContainerName
+    $Certificate = (Get-ChildItem "Cert:\$CertStoreLocation\$CertStoreName" | Where-Object {$_.FriendlyName -eq $CertName}).PrivateKey.CspKeyContainerInfo.UniqueKeyContainerName
     if ($Certificate) {
-        $keyPath = "C:\ProgramData\Microsoft\Crypto\RSA\MachineKeys\"
+        $keyPath = $env:ProgramData + "\Microsoft\Crypto\RSA\MachineKeys\"
         $fullpath = $keypath+$Certificate
-        $acl=Get-Acl -Path $fullPath
+        $acl=(Get-Item $fullpath).GetAccessControl('Access')
         $permission=$User, "Read", "Allow"
         $accessRule=new-object System.Security.AccessControl.FileSystemAccessRule $permission
-        $acl.AddAccessRule($accessRule)
+	    $acl.SetAccessRule($accessRule)
         try {
-            Set-Acl $fullPath $acl
+            Set-Acl -Path $fullPath -AclObject $acl
             Write-Output "CAM: Granted access to $User for certificate $CertName in $CertStoreLocation\$CertStoreName store."
         }
         catch {
