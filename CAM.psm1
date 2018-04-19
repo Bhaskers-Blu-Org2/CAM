@@ -526,6 +526,8 @@ param(
     [parameter()]
     [string]$CertStoreLocation = "LocalMachine",
     [parameter()]
+    [string]$keyStorageFlags = "PersistKeySet",
+    [parameter()]
     $CAMConfig = $script:CAMConfig,
     [parameter()]
     [bool]$Unstructured = $false
@@ -553,10 +555,10 @@ param(
     $Pfx = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2
     try {
         if ($Unstructured) {
-            $Pfx.Import($CertBytes)
+            $Pfx.Import($CertBytes, '', $keyStorageFlags)
         }
         else {
-            $Pfx.Import($CertBytes, $Password, "PersistKeySet")
+            $Pfx.Import($CertBytes, $Password, $keyStorageFlags)
         }
     }
     catch {

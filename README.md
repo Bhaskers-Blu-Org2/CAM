@@ -354,6 +354,8 @@ CAM: Certificate fourthtest deleted from LocalMachine\My store
 ```
 
 # Version + Updates
+**1.3** "Unstructured" property can now be set on certificates to denote that they are not structured in json as outlined in the Wiki. Additionally, the keyStorageFlags parameter was added to the Install-KVSecretObject function to let you set [storage flags](https://msdn.microsoft.com/en-us/library/system.security.cryptography.x509certificates.x509keystorageflags(v=vs.110).aspx) on installed certificates such as 'Exportable'.
+
 **1.2** New function added "Grant-CertificateAccess" which grants certificate private key permissions to the supplied user. Adding the property "GrantAccess" in the manifest.json will trigger this function after certificate download. for example `"GrantAccess":"Network Service"`
 
 **1.1** Including the StoreName and StoreLocation property is no longer required in the Manifest.json. If it is not provided, the module will default to downloading the certificate to the LocalMachine\My store.
