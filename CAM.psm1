@@ -410,8 +410,12 @@ param(
             $CertificateName = $Secret.CertName
             $CertificateVersions = $Secret.CertVersions
 	    $Unstructured = $false
+	    $KeyStorageFlags = "PersistKeySet"
             if ($Secret.Unstructured) {
                 $Unstructured = $true
+            }
+	    if ($Secret.KeyStorageFlags) {
+                $KeyStorageFlags = $Secret.KeyStorageFlags
             }
             # Iterate through Certificate versions
             foreach ($CertificateVersion in $CertificateVersions) {
@@ -422,7 +426,8 @@ param(
                         # Install Certificate
                         write-output "CAM: Installing Certificate: $($CertificateName)"
                         Install-KVSecretObject -CertName $CertificateName -CertVersion $CertificateVerion.CertVersion `
-                            -CertStoreName $CertificateVersion.StoreName -CertStoreLocation $CertificateVersion.StoreLocation -Unstructured $Unstructured -CAMConfig $CAMConfig
+                            -CertStoreName $CertificateVersion.StoreName -CertStoreLocation $CertificateVersion.StoreLocation `
+			    -Unstructured $Unstructured -KeyStorageFlags $KeyStorageFlags -CAMConfig $CAMConfig
                         # Grant user access to private keys
                         if ($null -ne $CertificateVersion.GrantAccess) {
                             Grant-CertificateAccess -CertName $CertificateName -User $CertificateVersion.GrantAccess -CertStoreName $CertificateVersion.StoreName `
