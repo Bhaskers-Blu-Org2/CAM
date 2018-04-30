@@ -371,13 +371,17 @@ param(
     write-output "CAM: Manifest loaded"
 
     # Iterate through Certificates section 
+    
     if ($null -ne $json.certificates) {
-        foreach ($Certificate in $json.certificates) {
+        foreach ($Certificate in $json.Certificates) {
             $CertificateName = $Certificate.CertName
             $CertificateVersions = $Certificate.CertVersions
+            $KeyStorageFlags = "PersistKeySet"
+            if ($Certificate.KeyStorageFlags) {
+                $KeyStorageFlags = $Certificate.KeyStorageFlags
+            }
             # Iterate through Certificate versions
             foreach ($CertificateVersion in $CertificateVersions) {
-                $RetrievedCertificate = Get-AzureKeyVaultCertificate -VaultName $CAMConfig.KeyVault -Name $CertificateName -Version $CertificateVersion.CertVersion
                 $downloaded = $false
                 # Iterate through deployment array to decide if cert should be installed or deleted
                 foreach ($deployment in $CertificateVersion.Deploy) {
@@ -385,9 +389,10 @@ param(
                         # Install Certificate
                         write-output "CAM: Installing Certificate: $($CertificateName)"
                         Install-KVCertificateObject -CertName $CertificateName -CertVersion $CertificateVersion.CertVersion `
-                            -CertStoreName $CertificateVersion.StoreName -CertStoreLocation $CertificateVersion.StoreLocation
+                            -CertStoreName $CertificateVersion.StoreName -CertStoreLocation $CertificateVersion.StoreLocation `
+                            -KeyStorageFlags $KeyStorageFlags -Export $Certificate.Export -CAMConfig $CAMConfig
                         # Grant user access to private keys
-                        if ($null -ne $CertificateVersion.GrantAccess) {
+                        if ($null -ne $Certificate.GrantAccess) {
                             Grant-CertificateAccess -CertName $CertificateName -User $CertificateVersion.GrantAccess -CertStoreName $CertificateVersion.StoreName `
                             -CertStoreLocation $CertificateVersion.StoreLocation
                         }
@@ -397,24 +402,25 @@ param(
                 # Delete Certificate
                 if (!$downloaded) {
                     write-output "CAM: Deleting Certificate: $($CertificateName)"
+                    $RetrievedCertificate = Get-AzureKeyVaultCertificate -VaultName $CAMConfig.KeyVault -Name $CertificateName -Version $CertificateVersion.CertVersion
                     Remove-Certificate -certName $CertificateName -CertStoreLocation $CertificateVersion.StoreLocation `
                      -CertStoreName $CertificateVersion.StoreName -certThumbprint $RetrievedCertificate.Thumbprint
                 }
             }
         }
     }
-
-    # Iterate through Secrets section 
+    
+    # Iterate through Secrets section  
     if ($null -ne $json.Secrets) {
         foreach ($Secret in $json.Secrets) {
             $CertificateName = $Secret.CertName
             $CertificateVersions = $Secret.CertVersions
-	    $Unstructured = $false
-	    $KeyStorageFlags = "PersistKeySet"
+	        $Unstructured = $false
+	        $KeyStorageFlags = "PersistKeySet"
             if ($Secret.Unstructured) {
                 $Unstructured = $true
             }
-	    if ($Secret.KeyStorageFlags) {
+	        if ($Secret.KeyStorageFlags) {
                 $KeyStorageFlags = $Secret.KeyStorageFlags
             }
             # Iterate through Certificate versions
@@ -425,11 +431,11 @@ param(
                     if ($deployment -eq "True" -or $deployment -eq $CAMConfig.Environment) { 
                         # Install Certificate
                         write-output "CAM: Installing Certificate: $($CertificateName)"
-                        Install-KVSecretObject -CertName $CertificateName -CertVersion $CertificateVerion.CertVersion `
+                        Install-KVSecretObject -CertName $CertificateName -CertVersion $CertificateVersion.CertVersion `
                             -CertStoreName $CertificateVersion.StoreName -CertStoreLocation $CertificateVersion.StoreLocation `
-			    -Unstructured $Unstructured -KeyStorageFlags $KeyStorageFlags -CAMConfig $CAMConfig
+			                -Unstructured $Unstructured -KeyStorageFlags $KeyStorageFlags -Export $Secret.Export -CAMConfig $CAMConfig
                         # Grant user access to private keys
-                        if ($null -ne $CertificateVersion.GrantAccess) {
+                        if ($null -ne $Secret.GrantAccess) {
                             Grant-CertificateAccess -CertName $CertificateName -User $CertificateVersion.GrantAccess -CertStoreName $CertificateVersion.StoreName `
                             -CertStoreLocation $CertificateVersion.StoreLocation
                         }
@@ -439,14 +445,13 @@ param(
                 # Delete Certificate
                 if (!$download) {
                     write-output "CAM: Deleting Certificate: $($CertificateName)"
-                    $Thumbprint = Get-SecretThumbprint -CertName $CertificateName -CertVersion $CertificateVersion.CertVersion -CAMConfig $CAMConfig
+                    $Thumbprint = Get-SecretThumbprint -CertName $CertificateName -CertVersion $CertificateVersion.CertVersion -Unstructured $Unstructured -CAMConfig $CAMConfig
                     Remove-Certificate -CertName $CertificateName -CertStoreLocation $CertificateVersion.StoreLocation`
                      -CertStoreName $CertificateVersion.StoreName -CertThumbprint $Thumbprint
                 }
             }
         }
     }
-
 }
 
 <#
@@ -468,7 +473,6 @@ param(
     C:\PS> Install-KVCertificateObject -CertName "MyCertificate" -CertVersion "0000-0000-0000-0000" `
             -CertStoreName "My" -CertStoreLocation "LocalMachine" -CAMConfig $CustomConfig
 #>
-
 function Install-KVCertificateObject() {
 param(
     [parameter(Mandatory=$true)]
@@ -476,12 +480,19 @@ param(
     [parameter()]
     [string]$CertVersion,
     [parameter()]
+    [string]$Export,
+    [parameter()]
     [string]$CertStoreName = "My",
     [parameter()]
     [string]$CertStoreLocation = "LocalMachine",
     [parameter()]
+    [string]$KeyStorageFlags = "PersistKeySet",
+    [parameter()]
     $CAMConfig = $script:CAMConfig
 )
+    if (!(LoggedIn -CAMConfig $CAMConfig)) {
+        Authenticate-ToKeyVault -CAMConfig $CAMConfig
+    }
     if ($CertVersion) {
     	$Cert = Get-AzureKeyVaultCertificate -VaultName $CAMConfig.KeyVault -Name $CertName -Version $CertVersion
     }
@@ -492,12 +503,24 @@ param(
         write-output "CAM: Certificate $($certName) does not exist in $($CAMConfig.KeyVault) KeyVault"
         return
     }
-    $Cert.Certificate.FriendlyName = $CertName
+    try {
+        $Pfx = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2($Cert.Certificate.RawData, "", $keyStorageFlags)
+    }
+    catch {
+        write-output "CAM: Certificate $Certname could not be imported with password. Exception: $_"
+        return
+    }
+    $Pfx.FriendlyName = $CertName
     $Store = New-Object System.Security.Cryptography.X509Certificates.X509Store($CertStoreName, $CertStoreLocation)
     $Store.Open("MaxAllowed")
-    $Store.Add($Cert.Certificate)
+    $Store.Add($Pfx)
     $Store.Close()
-    write-output "CAM: Installed Certificate $($CertName) to $CertStoreLocation\$CertStoreName"
+    if ($Export) {
+        $Bytes = $Pfx.Export("Cert")
+        [IO.File]::WriteAllBytes("$Export\$CertName.cer", $Bytes)
+    }
+    $Pfx.Dispose()
+    write-output "CAM: Installed Certificate $($CertName) to $CertStoreLocation\$CertStoreName store"
 }
 
 <#
@@ -527,16 +550,21 @@ param(
     [parameter()]
     [string]$CertVersion,
     [parameter()]
+    [string]$Export,
+    [parameter()]
     [string]$CertStoreName = "My",
     [parameter()]
     [string]$CertStoreLocation = "LocalMachine",
     [parameter()]
     [string]$keyStorageFlags = "PersistKeySet",
     [parameter()]
-    $CAMConfig = $script:CAMConfig,
+    [bool]$Unstructured = $false,
     [parameter()]
-    [bool]$Unstructured = $false
+    $CAMConfig = $script:CAMConfig
 )
+    if (!(LoggedIn -CAMConfig $CAMConfig)) {
+        Authenticate-ToKeyVault -CAMConfig $CAMConfig
+    }
     if ($CertVersion) {
     	$Secret = Get-PrivateKeyVaultCert -CertName $CertName -CertVersion $CertVersion -CAMConfig $CamConfig
     }
@@ -551,19 +579,23 @@ param(
         $CertBytes = [Convert]::FromBase64String($Secret.SecretValueText)
     }
     else {
-        $KvSecretBytes = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($Secret.SecretValueText))
-        $CertJson = $KvSecretBytes | ConvertFrom-Json
-        $Password = $CertJson.password
-        $CertBytes = [System.Convert]::FromBase64String($CertJson.data)
+        try {
+            $KvSecretBytes = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($Secret.SecretValueText))
+            $CertJson = $KvSecretBytes | ConvertFrom-Json
+            $Password = $CertJson.password
+            $CertBytes = [System.Convert]::FromBase64String($CertJson.data)
+        }
+        catch {
+            write-output "CAM: Certificate $($CertName) has invalid JSON, Unable to install"
+            return
+        }
     }
-
-    $Pfx = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2
     try {
         if ($Unstructured) {
-            $Pfx.Import($CertBytes, '', $keyStorageFlags)
+            $Pfx = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2($CertBytes, '', $keyStorageFlags)
         }
         else {
-            $Pfx.Import($CertBytes, $Password, $keyStorageFlags)
+            $Pfx = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2($CertBytes, $Password, $keyStorageFlags)
         }
     }
     catch {
@@ -574,7 +606,11 @@ param(
     $Store = New-Object System.Security.Cryptography.X509Certificates.X509Store($CertStoreName, $CertStoreLocation)
     $Store.Open("MaxAllowed")
     $Store.Add($Pfx)
-    $Store.Close()
+    $Store.Close() 
+    if ($Export) {
+        $Bytes = $Pfx.Export("Cert")
+        [IO.File]::WriteAllBytes("$Export\$CertName.cer", $Bytes)
+    }
     $Pfx.Dispose()
     write-output "CAM: Installed Certificate $($CertName) to $CertStoreLocation\$CertStoreName store"
 }
@@ -693,24 +729,33 @@ param(
     [string]$CertStoreLocation = "LocalMachine"
 
 )
-    $Certificate = (Get-ChildItem "Cert:\$CertStoreLocation\$CertStoreName" | Where-Object {$_.FriendlyName -eq $CertName}).PrivateKey.CspKeyContainerInfo.UniqueKeyContainerName
-    if ($Certificate) {
-        $keyPath = $env:ProgramData + "\Microsoft\Crypto\RSA\MachineKeys\"
-        $fullpath = $keypath+$Certificate
-        $acl=(Get-Item $fullpath).GetAccessControl('Access')
-        $permission=$User, "Read", "Allow"
-        $accessRule=new-object System.Security.AccessControl.FileSystemAccessRule $permission
-	    $acl.SetAccessRule($accessRule)
-        try {
-            Set-Acl -Path $fullPath -AclObject $acl
-            Write-Output "CAM: Granted access to $User for certificate $CertName in $CertStoreLocation\$CertStoreName store."
-        }
-        catch {
-            Write-Output "CAM: Unable to grant access to $User for certificate $CertName in $CertStoreLocation\$CertStoreName store. Exception: $_"
+    try {
+        $Certificate = (Get-ChildItem "Cert:\$CertStoreLocation\$CertStoreName" `
+                        | Where-Object {$_.FriendlyName -eq $CertName}).PrivateKey.CspKeyContainerInfo.UniqueKeyContainerName
+        if ($Certificate) {
+            $keyPath = $env:ProgramData + "\Microsoft\Crypto\RSA\MachineKeys\"
+            $fullpath = $keypath+$Certificate
+            try {
+                $acl=(Get-Item $fullpath -ErrorAction Stop).GetAccessControl('Access')
+            }
+            catch {
+                write-output "CAM: Unable to find Machine Key path for certificate $($CertName), Grant-CertificateAccess failed."
+                return
+            }
+            $permission=$User, "Read", "Allow"
+            $accessRule=new-object System.Security.AccessControl.FileSystemAccessRule $permission
+	        $acl.SetAccessRule($accessRule)
+            try {
+                Set-Acl -Path $fullPath -AclObject $acl
+                Write-Output "CAM: Granted access to $User for certificate $CertName in $CertStoreLocation\$CertStoreName store."
+            }
+            catch {
+                Write-Output "CAM: Unable to grant access to $User for certificate $CertName in $CertStoreLocation\$CertStoreName store. Exception: $_"
+            }
         }
     }
-    else {
-        Write-Output "CAM: Unable to locate certificate $CertName in $CertStoreLocation\$CertStoreName store"
+    catch {
+        Write-Output "CAM: Grant-CertificateAccess failed. Exception: $_"
     }
 }
 
@@ -718,7 +763,7 @@ param(
 .SYNOPSIS
     This function retrieves a thumbprint from a secret object.
 .DESCRIPTION
-    This function retrieves a secret object from the KeyVault and then returns its thumbprint.
+    This function retrieves a secret object from the KeyVault and then returns its thumbprint. It is only used to identify the thumbprint of a secret object to be deleted.
 .PARAMETER CertName
     The friendly name of the certificate you would like to remove.
 .PARAMETER CertVersion
@@ -735,20 +780,33 @@ param(
     [parameter()]
     [string]$CertVersion,
     [parameter()]
+    [bool]$Unstructured,
+    [parameter()]
     [PSTypeName("CAMConfig")]$CAMConfig = $script:CAMConfig
 )
     $Secret = Get-AzureKeyVaultSecret -VaultName $CAMConfig.KeyVault -Name $CertName -Version $CertVersion -ErrorAction Stop
+    $Password = ''
     if (-not $Secret) {
         write-output "CAM: Certificate $($certName) does not exist in $($CAMConfig.KeyVault) KeyVault"
         return
     }
-    $KvSecretBytes = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($Secret.SecretValueText))
-    $CertJson = $KvSecretBytes | ConvertFrom-Json
-    $Password = $CertJson.password
-    $CertBytes = [System.Convert]::FromBase64String($CertJson.data)
-    $Pfx = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2
+    if ($Unstructured) {
+        $CertBytes = [Convert]::FromBase64String($Secret.SecretValueText)
+    }
+    else {
+        try {
+            $KvSecretBytes = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($Secret.SecretValueText))
+            $CertJson = $KvSecretBytes | ConvertFrom-Json
+            $Password = $CertJson.password
+            $CertBytes = [System.Convert]::FromBase64String($CertJson.data)
+        }
+        catch {
+            write-output "CAM: Certificate $($CertName) has invalid JSON, Get-SecretThumbprint failed"
+            return
+        }
+    }
     try {
-        $Pfx.Import($CertBytes, $Password, "PersistKeySet")
+        $Pfx = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2($CertBytes, $Password, "PersistKeySet")
     }
     catch {
         write-output "CAM: Certificate $Certname could not be imported with password. Exception: $_"
