@@ -784,7 +784,12 @@ param(
     [parameter()]
     [PSTypeName("CAMConfig")]$CAMConfig = $script:CAMConfig
 )
-    $Secret = Get-AzureKeyVaultSecret -VaultName $CAMConfig.KeyVault -Name $CertName -Version $CertVersion -ErrorAction Stop
+    if (-not $CertVersion) {
+    	$Secret = Get-AzureKeyVaultSecret -VaultName $CAMConfig.KeyVault -Name $CertName -ErrorAction Stop
+    }
+    else {
+    	$Secret = Get-AzureKeyVaultSecret -VaultName $CAMConfig.KeyVault -Name $CertName -Version $CertVersion -ErrorAction Stop
+    }
     $Password = ''
     if (-not $Secret) {
         write-output "CAM: Certificate $($certName) does not exist in $($CAMConfig.KeyVault) KeyVault"
