@@ -382,6 +382,14 @@ param(
             }
             # Iterate through Certificate versions
             foreach ($CertificateVersion in $CertificateVersions) {
+                $CertificateStoreLocation = "LocalMachine"
+                if ($CertificateVersion.StoreLocation) {
+                    $CertificateStoreLocation = $CertificateVersion.StoreLocation
+                }
+                $CertificateStoreName = "My"
+                if ($CertificateVersion.StoreName) {
+                    $CertificateStoreName = $CertificateVersion.StoreName
+                }
                 $downloaded = $false
                 # Iterate through deployment array to decide if cert should be installed or deleted
                 foreach ($deployment in $CertificateVersion.Deploy) {
@@ -389,12 +397,12 @@ param(
                         # Install Certificate
                         write-output "CAM: Installing Certificate: $($CertificateName)"
                         Install-KVCertificateObject -CertName $CertificateName -CertVersion $CertificateVersion.CertVersion `
-                            -CertStoreName $CertificateVersion.StoreName -CertStoreLocation $CertificateVersion.StoreLocation `
+                            -CertStoreName $CertificateStoreName -CertStoreLocation $CertificateStoreLocation `
                             -KeyStorageFlags $KeyStorageFlags -Export $Certificate.Export -CAMConfig $CAMConfig
                         # Grant user access to private keys
                         if ($null -ne $Certificate.GrantAccess) {
-                            Grant-CertificateAccess -CertName $CertificateName -User $CertificateVersion.GrantAccess -CertStoreName $CertificateVersion.StoreName `
-                            -CertStoreLocation $CertificateVersion.StoreLocation
+                            Grant-CertificateAccess -CertName $CertificateName -User $CertificateVersion.GrantAccess -CertStoreName $CertificateStoreName `
+                            -CertStoreLocation $CertificateStoreLocation
                         }
                         $downloaded = $true
                     }
@@ -403,8 +411,8 @@ param(
                 if (!$downloaded) {
                     write-output "CAM: Deleting Certificate: $($CertificateName)"
                     $RetrievedCertificate = Get-AzureKeyVaultCertificate -VaultName $CAMConfig.KeyVault -Name $CertificateName -Version $CertificateVersion.CertVersion
-                    Remove-Certificate -certName $CertificateName -CertStoreLocation $CertificateVersion.StoreLocation `
-                     -CertStoreName $CertificateVersion.StoreName -certThumbprint $RetrievedCertificate.Thumbprint
+                    Remove-Certificate -certName $CertificateName -CertStoreLocation $CertificateStoreLocation `
+                     -CertStoreName $CertificateStoreName -certThumbprint $RetrievedCertificate.Thumbprint
                 }
             }
         }
@@ -425,6 +433,14 @@ param(
             }
             # Iterate through Certificate versions
             foreach ($CertificateVersion in $CertificateVersions) {
+                $CertificateStoreLocation = "LocalMachine"
+                if ($CertificateVersion.StoreLocation) {
+                    $CertificateStoreLocation = $CertificateVersion.StoreLocation
+                }
+                $CertificateStoreName = "My"
+                if ($CertificateVersion.StoreName) {
+                    $CertificateStoreName = $CertificateVersion.StoreName
+                }
                 $download = $false
                 # Iterate through deployment array to decide if cert should be downloaded or deleted
                 foreach ($deployment in $CertificateVersion.Deploy) {
@@ -432,12 +448,12 @@ param(
                         # Install Certificate
                         write-output "CAM: Installing Certificate: $($CertificateName)"
                         Install-KVSecretObject -CertName $CertificateName -CertVersion $CertificateVersion.CertVersion `
-                            -CertStoreName $CertificateVersion.StoreName -CertStoreLocation $CertificateVersion.StoreLocation `
+                            -CertStoreName $CertificateStoreName -CertStoreLocation $CertificateStoreLocation `
 			                -Unstructured $Unstructured -KeyStorageFlags $KeyStorageFlags -Export $Secret.Export -CAMConfig $CAMConfig
                         # Grant user access to private keys
                         if ($null -ne $Secret.GrantAccess) {
-                            Grant-CertificateAccess -CertName $CertificateName -User $CertificateVersion.GrantAccess -CertStoreName $CertificateVersion.StoreName `
-                            -CertStoreLocation $CertificateVersion.StoreLocation
+                            Grant-CertificateAccess -CertName $CertificateName -User $CertificateVersion.GrantAccess -CertStoreName $CertificateStoreName `
+                            -CertStoreLocation $CertificateStoreLocation
                         }
                         $download = $true
                     }
@@ -446,8 +462,8 @@ param(
                 if (!$download) {
                     write-output "CAM: Deleting Certificate: $($CertificateName)"
                     $Thumbprint = Get-SecretThumbprint -CertName $CertificateName -CertVersion $CertificateVersion.CertVersion -Unstructured $Unstructured -CAMConfig $CAMConfig
-                    Remove-Certificate -CertName $CertificateName -CertStoreLocation $CertificateVersion.StoreLocation`
-                     -CertStoreName $CertificateVersion.StoreName -CertThumbprint $Thumbprint
+                    Remove-Certificate -CertName $CertificateName -CertStoreLocation $CertificateStoreLocation`
+                     -CertStoreName $CertificateStoreName -CertThumbprint $Thumbprint
                 }
             }
         }
