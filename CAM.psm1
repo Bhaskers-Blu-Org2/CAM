@@ -181,10 +181,16 @@ param(
 function New-CAMSchedule() {
 param(
     [parameter()]
+    [string]$LocalManifest,
+    [parameter()]
     [string]$Path = (Get-Item -Path ".\").FullName
 )
     try {
-        $action = New-ScheduledTaskAction -Execute 'Powershell.exe' -WorkingDirectory "$Path" -Argument "Import-Module .\CAM.psm1; Install-KVCertificates"
+        if ($LocalManifest) {
+            $LocalManifest = " -LocalManifest " + $LocalManifest
+        }
+
+        $action = New-ScheduledTaskAction -Execute 'Powershell.exe' -WorkingDirectory "$Path" -Argument "Import-Module .\CAM.psm1; Install-KVCertificates$LocalManifest"
 
         $trigger =  New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes 5) 
 
@@ -334,6 +340,10 @@ param(
         Read-CAMConfig | Out-Null
     }
 
+    if ($Manifest.KeyVault) {
+        $CAMConfig.KeyVault = $Manifest.KeyVault
+    }
+
     write-output "CAM: Config loaded"
 
     #If certificate authentication is being used, install the required certificate
@@ -368,7 +378,18 @@ param(
         $json = $manifest.SecretValueText | ConvertFrom-Json
     }
 
-    write-output "CAM: Manifest loaded"
+    $ManifestName = ""
+    if ($json.ManifestName) {
+        $ManifestName = $json.ManifestName + " "
+    }
+    write-output "CAM: $($ManifestName)Manifest loaded"
+
+    if ($json.Manifests){
+        write-output "CAM: Sub-Manifests detected..."
+        foreach ($manifest in $json.Manifests){
+            Install-KVCertificates -Manifest $manifest
+        }
+    }
 
     # Iterate through Certificates section 
     
