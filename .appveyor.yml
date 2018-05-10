@@ -1,8 +1,3 @@
--
-branches:
-  only:
-    - master
-configuration: Release
 install:
   - cinst pester
 platform: Any CPU
@@ -13,6 +8,11 @@ test_script:
   - ps: (New-Object 'System.Net.WebClient').UploadFile("https://ci.appveyor.com/api/testresults/nunit/$($env:APPVEYOR_JOB_ID)", (Resolve-Path .\TestsResults.xml))
   - ps: if ($res.FailedCount -gt 0) { throw "$($res.FailedCount) tests failed."}
 
+for: 
+-
+  branches:
+    only:
+      - master
 deploy_script:
   - ps: if ($res.FailedCount -eq 0) { 
       write-host "All Tests succeeded, deploying CAM to Powershell Gallery" ; 
@@ -29,19 +29,4 @@ deploy_script:
       Remove-Item "$Path\example-manifest.json";
       try{Publish-Module -Path $Path -NuGetApiKey $env:NugetKey;
       write-host "Published module with version $env:APPVEYOR_BUILD_VERSION"}Catch{ throw "Publish Failed"}}
--
-branches:
-  only:
-    - integration
-Configuration: Debug
-install:
-  - cinst pester
-platform: Any CPU
-build: false
-
-test_script:
-  - ps: $res = Invoke-Pester -Script @{ Path = ".\"; Arguments = 'Cloudbuild'} -OutputFormat NUnitXml -OutputFile TestsResults.xml -PassThru
-  - ps: (New-Object 'System.Net.WebClient').UploadFile("https://ci.appveyor.com/api/testresults/nunit/$($env:APPVEYOR_JOB_ID)", (Resolve-Path .\TestsResults.xml))
-  - ps: if ($res.FailedCount -gt 0) { throw "$($res.FailedCount) tests failed."}
-
 -
