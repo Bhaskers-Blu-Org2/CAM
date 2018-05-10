@@ -2,7 +2,7 @@
 branches:
   only:
     - master
-    
+configuration: Release
 install:
   - cinst pester
 platform: Any CPU
@@ -33,7 +33,7 @@ deploy_script:
 branches:
   only:
     - integration
-    
+Configuration: Debug
 install:
   - cinst pester
 platform: Any CPU
