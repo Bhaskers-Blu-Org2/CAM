@@ -15,22 +15,22 @@ for:
     only:
       - master
       
-configuration: Release
+  configuration: Release
 
-deploy_script:
-  - ps: if ($res.FailedCount -eq 0) { 
-      write-host "All Tests succeeded, deploying CAM to Powershell Gallery" ; 
-      $Path = (Get-Item -Path ".\").FullName ;
-      Install-Module AzureRm;
-      $manifest = Get-Content -Raw -Path "$Path\CAM.psd1" ;
-      $manifest -replace "ModuleVersion = '0.0.1'" , "ModuleVersion = '$env:APPVEYOR_BUILD_VERSION'" | Out-File "$Path\CAM.psd1";
-      Remove-Item "$Path\.git\*" -recurse -force;
-      Remove-Item "$Path\TestsResults.xml" -force;
-      Remove-Item "$Path\.appveyor.yml" -force;
-      Remove-Item "$Path\.gitignore";
-      Remove-Item "$Path\CAMConfig.json";
-      Remove-Item "$Path\README.md";
-      Remove-Item "$Path\example-manifest.json";
-      try{Publish-Module -Path $Path -NuGetApiKey $env:NugetKey;
-      write-host "Published module with version $env:APPVEYOR_BUILD_VERSION"}Catch{ throw "Publish Failed"}}
+  deploy_script:
+    - ps: if ($res.FailedCount -eq 0) { 
+        write-host "All Tests succeeded, deploying CAM to Powershell Gallery" ; 
+        $Path = (Get-Item -Path ".\").FullName ;
+        Install-Module AzureRm;
+        $manifest = Get-Content -Raw -Path "$Path\CAM.psd1" ;
+        $manifest -replace "ModuleVersion = '0.0.1'" , "ModuleVersion = '$env:APPVEYOR_BUILD_VERSION'" | Out-File "$Path\CAM.psd1";
+        Remove-Item "$Path\.git\*" -recurse -force;
+        Remove-Item "$Path\TestsResults.xml" -force;
+        Remove-Item "$Path\.appveyor.yml" -force;
+        Remove-Item "$Path\.gitignore";
+        Remove-Item "$Path\CAMConfig.json";
+        Remove-Item "$Path\README.md";
+        Remove-Item "$Path\example-manifest.json";
+        try{Publish-Module -Path $Path -NuGetApiKey $env:NugetKey;
+        write-host "Published module with version $env:APPVEYOR_BUILD_VERSION"}Catch{ throw "Publish Failed"}}
 
