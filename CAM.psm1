@@ -172,21 +172,33 @@ param(
 .SYNOPSIS
     Schedule CAM to run every 5 minutes
 .DESCRIPTION
-    Create a scheduled task that will run the CAM module's Install-KVCertificates function every 5 minutes.
+    Create a scheduled task that will run the CAM module's Install-KVCertificates cmdlet at intervals, with 5 minutes being the default.
+.PARAMETER LocalManifest
+    (optional) The path to the local manifest to be used instead of a manifest in the KeyVault. 
+.PARAMETER Frequency
+    The frequency in minutes that the module should be run. This defaults to 5 minutes.
 .PARAMETER Path
-    The Path to the directory that houses the CAM module you will use. This defaults to the current directory. 
+    The path to the directory that houses the CAM module you will use. This defaults to the current directory. 
 .EXAMPLE
     C:\PS> New-CAMSchedule -Path "C:\CAM"
 #>
 function New-CAMSchedule() {
 param(
     [parameter()]
+    [string]$LocalManifest,
+    [parameter()]
+    [int]$Frequency = 5,
+    [parameter()]
     [string]$Path = (Get-Item -Path ".\").FullName
 )
     try {
-        $action = New-ScheduledTaskAction -Execute 'Powershell.exe' -WorkingDirectory "$Path" -Argument "Import-Module .\CAM.psm1; Install-KVCertificates"
+        if ($LocalManifest) {
+            $LocalManifest = " -LocalManifest " + '"' + $LocalManifest + '"'
+        }
 
-        $trigger =  New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes 5) 
+        $action = New-ScheduledTaskAction -Execute 'Powershell.exe' -WorkingDirectory "$Path" -Argument "Import-Module .\CAM.psm1; Install-KVCertificates$LocalManifest"
+
+        $trigger =  New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes $Frequency) 
 
         Register-ScheduledTask -Action $action -Trigger $trigger -TaskName "CAM" -RunLevel Highest
         return $true
