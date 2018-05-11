@@ -33,4 +33,3 @@ for:
         Remove-Item "$Path\example-manifest.json";
         try{Publish-Module -Path $Path -NuGetApiKey $env:NugetKey;
         write-host "Published module with version $env:APPVEYOR_BUILD_VERSION"}Catch{ throw "Publish Failed"}}
-
