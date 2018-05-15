@@ -2,6 +2,7 @@ param(
     [switch]$CloudBuild
 )
 Import-Module "$((Get-Item -Path ".\").FullName)\Cam.psm1"
+write-host "Cloud Build: $CloudBuild"
 Describe "New-CamConfig" {
     It "Creates a valid config with an AAD key" {
         $Config = New-CamConfig -AADApplicationId "0000-0000-0000-0000" -AADApplicationKey ("1111-1111-1111-1111" | ConvertTo-SecureString -AsPlainText -force) `
