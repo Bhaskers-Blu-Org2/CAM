@@ -350,6 +350,10 @@ param(
         Read-CAMConfig | Out-Null
     }
 
+    #if ($Manifest.KeyVault) {
+    #    $CAMConfig.KeyVault = $Manifest.KeyVault
+    #}
+
     write-output "CAM: Config loaded"
 
     #If certificate authentication is being used, install the required certificate
@@ -384,10 +388,12 @@ param(
         $json = $manifest.SecretValueText | ConvertFrom-Json
     }
 
-    write-output "CAM: Manifest loaded"
+    $ManifestName = ""
+    $DefaultKeyVault = $CAMConfig.KeyVault
+
+    write-output "CAM: $($ManifestName)Manifest loaded"
 
     # Iterate through Certificates section 
-    
     if ($null -ne $json.certificates) {
         foreach ($Certificate in $json.Certificates) {
             $CertificateName = $Certificate.CertName
@@ -441,11 +447,18 @@ param(
             $CertificateVersions = $Secret.CertVersions
 	        $Unstructured = $false
 	        $KeyStorageFlags = "PersistKeySet"
+            $example = "ADF"
             if ($Secret.Unstructured) {
                 $Unstructured = $true
             }
 	        if ($Secret.KeyStorageFlags) {
                 $KeyStorageFlags = $Secret.KeyStorageFlags
+            }
+            if ($Secret.KeyVault) {
+                $CAMConfig.KeyVault = $Secret.KeyVault
+            } 
+            else { 
+                $CAMConfig.KeyVault = $DefaultKeyVault 
             }
             # Iterate through Certificate versions
             foreach ($CertificateVersion in $CertificateVersions) {
