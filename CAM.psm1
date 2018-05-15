@@ -390,20 +390,10 @@ param(
 
     $ManifestName = ""
     $DefaultKeyVault = $CAMConfig.KeyVault
-    #if ($json.ManifestName) {
-    #    $ManifestName = $json.ManifestName + " "
-    #}
+
     write-output "CAM: $($ManifestName)Manifest loaded"
 
-    #if ($json.Manifests){
-    #    write-output "CAM: Sub-Manifests detected..."
-    #    foreach ($manifest in $json.Manifests){
-    #        Install-KVCertificates -Manifest $manifest
-    #    }
-    #}
-
     # Iterate through Certificates section 
-    
     if ($null -ne $json.certificates) {
         foreach ($Certificate in $json.Certificates) {
             $CertificateName = $Certificate.CertName
