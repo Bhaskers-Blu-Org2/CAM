@@ -1,4 +1,4 @@
-﻿# CONSTRUCTORS
+# CONSTRUCTORS
 
 <# 
 .SYNOPSIS
@@ -172,9 +172,13 @@ param(
 .SYNOPSIS
     Schedule CAM to run every 5 minutes
 .DESCRIPTION
-    Create a scheduled task that will run the CAM module's Install-KVCertificates function every 5 minutes.
+    Create a scheduled task that will run the CAM module's Install-KVCertificates cmdlet at intervals, with 5 minutes being the default.
+.PARAMETER LocalManifest
+    (optional) The path to the local manifest to be used instead of a manifest in the KeyVault. 
+.PARAMETER Frequency
+    The frequency in minutes that the module should be run. This defaults to 5 minutes.
 .PARAMETER Path
-    The Path to the directory that houses the CAM module you will use. This defaults to the current directory. 
+    The path to the directory that houses the CAM module you will use. This defaults to the current directory. 
 .EXAMPLE
     C:\PS> New-CAMSchedule -Path "C:\CAM"
 #>
@@ -183,16 +187,18 @@ param(
     [parameter()]
     [string]$LocalManifest,
     [parameter()]
+    [int]$Frequency = 5,
+    [parameter()]
     [string]$Path = (Get-Item -Path ".\").FullName
 )
     try {
         if ($LocalManifest) {
-            $LocalManifest = " -LocalManifest " + $LocalManifest
+            $LocalManifest = " -LocalManifest " + '"' + $LocalManifest + '"'
         }
 
         $action = New-ScheduledTaskAction -Execute 'Powershell.exe' -WorkingDirectory "$Path" -Argument "Import-Module .\CAM.psm1; Install-KVCertificates$LocalManifest"
 
-        $trigger =  New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes 5) 
+        $trigger =  New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes $Frequency) 
 
         Register-ScheduledTask -Action $action -Trigger $trigger -TaskName "CAM" -RunLevel Highest
         return $true
@@ -260,6 +266,8 @@ param(
     Authenticate to AAD Application using a encrypted key that has been whitelisted with an applicable service principal.
 .PARAMETER CAMConfig
     (optional) A configuration object used to override the fallback variable and any present configuration files.
+.PARAMETER Key
+    (optional) An AAD application key to be used if it differs from the one being used in the CAMConfig.
 .EXAMPLE
     C:\PS> Authenticate-WithKey -CAMConfig $CustomConfig
 #>
@@ -268,10 +276,10 @@ param(
     [parameter()]
     [PSTypeName("CAMConfig")]$CAMConfig = $script:CAMConfig,
     [parameter()]
-    [SecureString]$key = $CAMConfig.AADApplicationKey
+    [SecureString]$Key = $CAMConfig.AADApplicationKey
 )
     try {
-        $Credential = New-Object System.Management.Automation.PSCredential($CAMConfig.AADApplicationID, $key)
+        $Credential = New-Object System.Management.Automation.PSCredential($CAMConfig.AADApplicationID, $Key)
         Login-AzureRmAccount -Credential $Credential -Tenant $CAMConfig.TenantId -ServicePrincipal -ErrorAction Stop
     }
     catch {
@@ -318,6 +326,8 @@ param(
     Iterate through the secrets and download or delete the certificate as specified in the certificateVersion "deploy" property. Repeat this process for the certificate section.
 .PARAMETER LocalManifest
     (optional) The full path to a valid json manifest file to be used in place of a passed in object or manifest available in the KeyVault.
+.PARAMETER Manifest
+    (optional) A PSCustom object containing the manifest information to override a local or keyvault sourced manifest.
 .PARAMETER CAMConfig
     (optional) A configuration object used to override the fallback variable and any present configuration files.
 .EXAMPLE
@@ -338,10 +348,6 @@ param(
     }
     else {
         Read-CAMConfig | Out-Null
-    }
-
-    if ($Manifest.KeyVault) {
-        $CAMConfig.KeyVault = $Manifest.KeyVault
     }
 
     write-output "CAM: Config loaded"
@@ -379,20 +385,11 @@ param(
     }
 
     $ManifestName = ""
-    if ($json.ManifestName) {
-        $ManifestName = $json.ManifestName + " "
-    }
+    $DefaultKeyVault = $CAMConfig.KeyVault
+
     write-output "CAM: $($ManifestName)Manifest loaded"
 
-    if ($json.Manifests){
-        write-output "CAM: Sub-Manifests detected..."
-        foreach ($manifest in $json.Manifests){
-            Install-KVCertificates -Manifest $manifest
-        }
-    }
-
     # Iterate through Certificates section 
-    
     if ($null -ne $json.certificates) {
         foreach ($Certificate in $json.Certificates) {
             $CertificateName = $Certificate.CertName
@@ -452,6 +449,12 @@ param(
 	        if ($Secret.KeyStorageFlags) {
                 $KeyStorageFlags = $Secret.KeyStorageFlags
             }
+            if ($Secret.KeyVault) {
+                $CAMConfig.KeyVault = $Secret.KeyVault
+            } 
+            else { 
+                $CAMConfig.KeyVault = $DefaultKeyVault 
+            }
             # Iterate through Certificate versions
             foreach ($CertificateVersion in $CertificateVersions) {
                 $CertificateStoreLocation = "LocalMachine"
@@ -493,17 +496,21 @@ param(
 
 <#
 .SYNOPSIS
-	This function will download and install a certificate object from a key vault and install it on local machine.
+    This function will download and install a certificate object from a key vault and install it on local machine.
 .DESCRIPTION
     This script runs through key vault commands to download a certificate object from a key vault and install it locally.
 .PARAMETER CertName
-    secret name in key vault
+    Secret name in key vault.
 .PARAMETER CertVersion
     (optional) Version GUID of the secret you want to retrieve.
+.PARAMETER Export
+    (optional) Path to folder where the public key should be exported as .cert file.
 .PARAMETER CertStoreName
     (optional) Certificate Store Name that you would like the certificate installed to. Defaults to "My"
 .PARAMETER CertStoreLocation
     (optional) Certificate Store Location that you would like the certificate installed to. Defaults to "LocalMachine"
+.PARAMETER KeyStorageFlags
+    (optional) Key storage flags to be used when the certificate is imported to the store. Defaults to "PersistKeySet"
 .PARAMETER CAMConfig
     (optional) A configuration object used to override the fallback variable and any present configuration files.
 .EXAMPLE
@@ -570,10 +577,16 @@ param(
     Cert name in key vault
 .PARAMETER CertVersion
     (optional) Version GUID of the secret you want to retrieve.
+.PARAMETER Export
+    (optional) Path to folder where the public key should be exported as .cert file.
 .PARAMETER CertStoreName
     (optional) Certificate Store Name that you would like the certificate installed to. Defaults to "My"
 .PARAMETER CertStoreLocation
     (optional) Certificate Store Location that you would like the certificate installed to. Defaults to "LocalMachine"
+.PARAMETER KeyStorageFlags
+    (optional) Key storage flags to be used when the certificate is imported to the store. Defaults to "PersistKeySet"
+.PARAMETER Unstructured
+    If true, will download the secret without disassembling it as a JSON object, and import with no password. Defaults to "false"
 .PARAMETER CAMConfig
     (optional) A configuration object used to override the fallback variable and any present configuration files.
 .EXAMPLE
@@ -805,6 +818,8 @@ param(
     The friendly name of the certificate you would like to remove.
 .PARAMETER CertVersion
     (optional) Version GUID of the secret you want to retrieve.
+.PARAMETER Unstructured
+    If true, will download the secret without disassembling it as a JSON object, and import with no password. Defaults to "false"
 .PARAMETER CAMConfig
     (optional) A configuration object used to override the fallback variable and any present configuration files.
 .EXAMPLE
