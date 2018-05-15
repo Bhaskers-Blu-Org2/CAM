@@ -32,6 +32,17 @@ Install-Module -Name "CAM"
 ```
 
 # Version + Updates
+**1.4** You can now override the defualt Key Vault certificates are pulled from by specifying an alternate vault in the Certificate Node as such:
+```POWERSHELL
+{
+ "CertName":"MyAwesomeCert",
+ "KeyVault":"MySecondaryKeyVault",
+ "CertVersions":{
+  "Deploy":["True"]
+ }
+}
+```
+
 **1.3** "Unstructured" property can now be set on certificates to denote that they are not structured in json as outlined in the Wiki. Additionally, the keyStorageFlags parameter was added to the Install-KVSecretObject function to let you set [storage flags](https://msdn.microsoft.com/en-us/library/system.security.cryptography.x509certificates.x509keystorageflags(v=vs.110).aspx) on installed certificates such as 'Exportable'.
 
 **1.2** New function added "Grant-CertificateAccess" which grants certificate private key permissions to the supplied user. Adding the property "GrantAccess" in the manifest.json will trigger this function after certificate download. for example `"GrantAccess":"Network Service"`
