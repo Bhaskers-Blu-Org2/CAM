@@ -350,6 +350,10 @@ param(
         Read-CAMConfig | Out-Null
     }
 
+    #if ($Manifest.KeyVault) {
+    #    $CAMConfig.KeyVault = $Manifest.KeyVault
+    #}
+
     write-output "CAM: Config loaded"
 
     #If certificate authentication is being used, install the required certificate
@@ -443,6 +447,7 @@ param(
             $CertificateVersions = $Secret.CertVersions
 	        $Unstructured = $false
 	        $KeyStorageFlags = "PersistKeySet"
+            $example = "ADF"
             if ($Secret.Unstructured) {
                 $Unstructured = $true
             }
