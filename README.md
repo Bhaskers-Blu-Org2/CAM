@@ -37,9 +37,9 @@ Install-Module -Name "CAM"
 {
  "CertName":"MyAwesomeCert",
  "KeyVault":"MySecondaryKeyVault",
- "CertVersions":{
+ "CertVersions":[{
   "Deploy":["True"]
- }
+ }]
 }
 ```
 
