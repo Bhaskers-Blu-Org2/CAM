@@ -447,7 +447,6 @@ param(
             $CertificateVersions = $Secret.CertVersions
 	        $Unstructured = $false
 	        $KeyStorageFlags = "PersistKeySet"
-            $example = "ADF"
             if ($Secret.Unstructured) {
                 $Unstructured = $true
             }
@@ -516,6 +515,8 @@ param(
     (optional) Certificate Store Location that you would like the certificate installed to. Defaults to "LocalMachine"
 .PARAMETER KeyStorageFlags
     (optional) Key storage flags to be used when the certificate is imported to the store. Defaults to "PersistKeySet"
+.PARAMETER ReturnOutput
+    (optional) A switch to indicate you want the HashTable returned with the Friendly Name and Thumbprint of the certificate
 .PARAMETER CAMConfig
     (optional) A configuration object used to override the fallback variable and any present configuration files.
 .EXAMPLE
@@ -536,6 +537,8 @@ param(
     [string]$CertStoreLocation = "LocalMachine",
     [parameter()]
     [string]$KeyStorageFlags = "PersistKeySet",
+    [parameter()]
+    [switch]$ReturnOutput,
     [parameter()]
     $CAMConfig = $script:CAMConfig
 )
@@ -568,8 +571,15 @@ param(
         $Bytes = $Pfx.Export("Cert")
         [IO.File]::WriteAllBytes("$Export\$CertName.cer", $Bytes)
     }
+    $Output = @{
+        FriendlyName=$pfx.FriendlyName
+        Thumbprint=$pfx.Thumbprint
+    }
     $Pfx.Dispose()
     write-output "CAM: Installed Certificate $($CertName) to $CertStoreLocation\$CertStoreName store"
+    if ($ReturnOutput) {
+        return $Output
+    }
 }
 
 <#
@@ -592,6 +602,8 @@ param(
     (optional) Key storage flags to be used when the certificate is imported to the store. Defaults to "PersistKeySet"
 .PARAMETER Unstructured
     If true, will download the secret without disassembling it as a JSON object, and import with no password. Defaults to "false"
+.PARAMETER ReturnOutput
+    (optional) A switch to indicate you want the HashTable returned with the Friendly Name and Thumbprint of the certificate
 .PARAMETER CAMConfig
     (optional) A configuration object used to override the fallback variable and any present configuration files.
 .EXAMPLE
@@ -612,6 +624,8 @@ param(
     [string]$CertStoreLocation = "LocalMachine",
     [parameter()]
     [string]$keyStorageFlags = "PersistKeySet",
+    [parameter()]
+    [switch]$ReturnOutput,
     [parameter()]
     [bool]$Unstructured = $false,
     [parameter()]
@@ -666,8 +680,15 @@ param(
         $Bytes = $Pfx.Export("Cert")
         [IO.File]::WriteAllBytes("$Export\$CertName.cer", $Bytes)
     }
+    $Output = @{
+        FriendlyName=$pfx.FriendlyName
+        Thumbprint=$pfx.Thumbprint
+    }
     $Pfx.Dispose()
     write-output "CAM: Installed Certificate $($CertName) to $CertStoreLocation\$CertStoreName store"
+    if ($ReturnOutput) {
+        return $Output
+    }
 }
 
 <# 
