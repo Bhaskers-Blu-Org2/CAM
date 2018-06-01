@@ -398,9 +398,13 @@ param(
         foreach ($Certificate in $json.Certificates) {
             $CertificateName = $Certificate.CertName
             $CertificateVersions = $Certificate.CertVersions
-            $KeyStorageFlags = "PersistKeySet"
+            $KeyStorageFlags = "DefaultKeySet"
+            $PublicKeyOnly = $false
             if ($Certificate.KeyStorageFlags) {
                 $KeyStorageFlags = $Certificate.KeyStorageFlags
+            }
+            if ($Certificate.PublicKeyOnly){
+                $PublicKeyOnly = $true
             }
             # Iterate through Certificate versions
             foreach ($CertificateVersion in $CertificateVersions) {
@@ -420,7 +424,7 @@ param(
                         write-output "CAM: Installing Certificate: $($CertificateName)"
                         Install-KVCertificateObject -CertName $CertificateName -CertVersion $CertificateVersion.CertVersion `
                             -CertStoreName $CertificateStoreName -CertStoreLocation $CertificateStoreLocation `
-                            -KeyStorageFlags $KeyStorageFlags -Export $Certificate.Export -CAMConfig $CAMConfig
+                            -KeyStorageFlags $KeyStorageFlags -Export $Certificate.Export -PublicKeyOnly $PublicKeyOnly -CAMConfig $CAMConfig
                         # Grant user access to private keys
                         if ($null -ne $Certificate.GrantAccess) {
                             Grant-CertificateAccess -CertName $CertificateName -User $CertificateVersion.GrantAccess -CertStoreName $CertificateStoreName `
@@ -446,12 +450,16 @@ param(
             $CertificateName = $Secret.CertName
             $CertificateVersions = $Secret.CertVersions
 	        $Unstructured = $false
-	        $KeyStorageFlags = "PersistKeySet"
+            $KeyStorageFlags = "DefaultKeySet"
+            $PublicKeyOnly = $false
             if ($Secret.Unstructured) {
                 $Unstructured = $true
             }
 	        if ($Secret.KeyStorageFlags) {
                 $KeyStorageFlags = $Secret.KeyStorageFlags
+            }
+            if ($Secret.PublicKeyOnly){
+                $PublicKeyOnly = $true
             }
             if ($Secret.KeyVault) {
                 $CAMConfig.KeyVault = $Secret.KeyVault
@@ -476,8 +484,8 @@ param(
                         # Install Certificate
                         write-output "CAM: Installing Certificate: $($CertificateName)"
                         Install-KVSecretObject -CertName $CertificateName -CertVersion $CertificateVersion.CertVersion `
-                            -CertStoreName $CertificateStoreName -CertStoreLocation $CertificateStoreLocation `
-			                -Unstructured $Unstructured -KeyStorageFlags $KeyStorageFlags -Export $Secret.Export -CAMConfig $CAMConfig
+                            -CertStoreName $CertificateStoreName -CertStoreLocation $CertificateStoreLocation -Unstructured $Unstructured `
+			                -KeyStorageFlags $KeyStorageFlags -Export $Secret.Export -PublicKeyOnly $PublicKeyOnly -CAMConfig $CAMConfig
                         # Grant user access to private keys
                         if ($null -ne $Secret.GrantAccess) {
                             Grant-CertificateAccess -CertName $CertificateName -User $CertificateVersion.GrantAccess -CertStoreName $CertificateStoreName `
@@ -536,7 +544,9 @@ param(
     [parameter()]
     [string]$CertStoreLocation = "LocalMachine",
     [parameter()]
-    [string]$KeyStorageFlags = "PersistKeySet",
+    [string]$KeyStorageFlags = "DefaultKeySet",
+    [parameter()]
+    [bool]$PublicKeyOnly = $false,
     [parameter()]
     [switch]$ReturnOutput,
     [parameter()]
@@ -546,17 +556,21 @@ param(
         Authenticate-ToKeyVault -CAMConfig $CAMConfig
     }
     if ($CertVersion) {
-    	$Cert = Get-AzureKeyVaultCertificate -VaultName $CAMConfig.KeyVault -Name $CertName -Version $CertVersion
+    	$Cert = Get-PrivateKeyVaultCert -CertName $CertName -CertVersion $CertVersion -CAMConfig $CamConfig
     }
     else {
-    	$Cert = Get-AzureKeyVaultCertificate -VaultName $CAMConfig.KeyVault -Name $CertName
+    	$Cert = Get-PrivateKeyVaultCert -CertName $CertName -CAMConfig $CamConfig
     }
     if (-not $Cert) {
         write-output "CAM: Certificate $($certName) does not exist in $($CAMConfig.KeyVault) KeyVault"
         return
     }
     try {
-        $Pfx = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2($Cert.Certificate.RawData, "", $keyStorageFlags)
+        $CertBytes = [Convert]::FromBase64String($Cert.SecretValueText)
+        $Pfx = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2($CertBytes, "", $keyStorageFlags)
+        if ($PublicKeyOnly -and $Pfx.HasPrivateKey) {
+            $Pfx.PrivateKey = $null
+        }
     }
     catch {
         write-output "CAM: Certificate $Certname could not be imported with password. Exception: $_"
@@ -623,7 +637,9 @@ param(
     [parameter()]
     [string]$CertStoreLocation = "LocalMachine",
     [parameter()]
-    [string]$keyStorageFlags = "PersistKeySet",
+    [string]$keyStorageFlags = "DefaultKeySet",
+    [parameter()]
+    [bool]$PublicKeyOnly = $false,
     [parameter()]
     [switch]$ReturnOutput,
     [parameter()]
@@ -665,6 +681,9 @@ param(
         }
         else {
             $Pfx = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2($CertBytes, $Password, $keyStorageFlags)
+        }
+        if ($PublicKeyOnly -and $Pfx.HasPrivateKey) {
+            $Pfx.PrivateKey = $null
         }
     }
     catch {
