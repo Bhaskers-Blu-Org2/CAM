@@ -32,6 +32,17 @@ Install-Module -Name "CAM"
 ```
 
 # Version + Updates
+**1.5** You can now have limited information returned to you about an installed certificate when calling the `Install-KVCertificateObject` or `Install-KVSecretObject` cmdlets by passing the `-ReturnOutput` switch. Below is an example of the call and output:
+```Powershell
+>Install-KVCertificateObject -CertName "MyCertificate" -ReturnOutput
+>CAM: Installed Certificate SSLAdmin to LocalMachine\My store
+
+Name                           Value
+----                           -----
+FriendlyName                   MyCertificate
+Thumbprint                     00001111222233334444555566667777888
+```
+
 **1.4** You can now override the defualt Key Vault certificates are pulled from by specifying an alternate vault in the Certificate Node as such:
 ```POWERSHELL
 {
