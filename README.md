@@ -32,6 +32,8 @@ Install-Module -Name "CAM"
 ```
 
 # Version + Updates
+**1.6** You can now install just the public key of a certificate from Key Vault by adding the `"PublicKeyOnly":true` property to your Manifest. Alternatively if you are calling the cmdlets directly you would pass the `-PublicKeyOnly $true` parameter. Additionally, due to investigation into Key storage within Key Vault, certificates are now pulled using the Get-AzureKeyVaultSecret AzureRm cmdlet within the Install-KVCertificateObject cmdlet.
+
 **1.5** You can now have limited information returned to you about an installed certificate when calling the `Install-KVCertificateObject` or `Install-KVSecretObject` cmdlets by passing the `-ReturnOutput` switch. Below is an example of the call and output:
 ```Powershell
 >Install-KVCertificateObject -CertName "MyCertificate" -ReturnOutput
