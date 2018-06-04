@@ -550,10 +550,14 @@ param(
     [parameter()]
     [switch]$ReturnOutput,
     [parameter()]
+    [switch]$SkipAuth,
+    [parameter()]
     $CAMConfig = $script:CAMConfig
 )
-    if (!(LoggedIn -CAMConfig $CAMConfig)) {
-        Authenticate-ToKeyVault -CAMConfig $CAMConfig
+    if (!$SkipAuth) {
+        if (!(LoggedIn -CAMConfig $CAMConfig)) {
+            Authenticate-ToKeyVault -CAMConfig $CAMConfig
+        }
     }
     if ($CertVersion) {
     	$Cert = Get-PrivateKeyVaultCert -CertName $CertName -CertVersion $CertVersion -CAMConfig $CamConfig
@@ -643,12 +647,16 @@ param(
     [parameter()]
     [switch]$ReturnOutput,
     [parameter()]
+    [switch]$SkipAuth,
+    [parameter()]
     [bool]$Unstructured = $false,
     [parameter()]
     $CAMConfig = $script:CAMConfig
 )
-    if (!(LoggedIn -CAMConfig $CAMConfig)) {
-        Authenticate-ToKeyVault -CAMConfig $CAMConfig
+    if (!$SkipAuth) {
+        if (!(LoggedIn -CAMConfig $CAMConfig)) {
+            Authenticate-ToKeyVault -CAMConfig $CAMConfig
+        }
     }
     if ($CertVersion) {
     	$Secret = Get-PrivateKeyVaultCert -CertName $CertName -CertVersion $CertVersion -CAMConfig $CamConfig
