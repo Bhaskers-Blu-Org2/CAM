@@ -70,8 +70,6 @@ function New-CAMConfig() {
 
 # LOG FUNCTIONS
 
-# END LOG FUNCTIONS
-
 function Write-InfoLog {
     param(
         [parameter(Mandatory=$true)]
@@ -146,8 +144,8 @@ function Write-CAMEventLog {
     }
 }
 
+# END LOG FUNCTIONS
 
-#>
 # SETUP FUNCTIONS
 
 # Script level variable for fallbacks during development, should store these in config or pass in to individual functions.
@@ -1051,8 +1049,6 @@ param(
     }
     return $false
 }
-
-Export-ModuleMember -Function Write-InfoLog
 
 Export-ModuleMember -Function New-CamConfig
 
