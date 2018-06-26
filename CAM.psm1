@@ -253,12 +253,12 @@ param(
             return $true
         }
         catch {
-            Write-WarningLog -Message "Unable to read config at $($Path)\CAMConfig.json, defaulting to hardcoded fallback values."
+            Write-WarningLog -Message "Unable to read config at $($Path)\CAMConfig.json, defaulting to hardcoded fallback values."`
                 -EventId 2003 -CAMConfig $CAMConfig
         }
     }
     else {
-        Write-WarningLog -Message "Unable to read config at $($Path)\CAMConfig.json, defaulting to hardcoded fallback values."
+        Write-WarningLog -Message "Unable to read config at $($Path)\CAMConfig.json, defaulting to hardcoded fallback values."`
                 -EventId 2003 -CAMConfig $CAMConfig
     }
 }
