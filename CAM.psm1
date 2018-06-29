@@ -1,4 +1,4 @@
-# CONSTRUCTORS
+﻿# CONSTRUCTORS
 
 <# 
 .SYNOPSIS
@@ -49,8 +49,11 @@ function New-CAMConfig() {
         [parameter(mandatory=$true)]
         [string]$Environment,
 
-        [parameter()]
-        [bool]$LogToWindowsEventLog = $false
+        [parameter(mandatory=$false)]
+        [string]$ApiBaseUrl,
+
+        [parameter(mandatory=$false)]
+        [PSCustomObject]$STID
     )
 
     return [PSCustomObject]@{
@@ -62,89 +65,12 @@ function New-CAMConfig() {
         KeyVaultCertificatePassword = $KeyVaultCertificatePassword
         KeyVault = $KeyVault
         Environment = $Environment
-        LogToWindowsEventLog = $LogToWindowsEventLog
+        ApiBaseUrl = $ApiBaseUrl
+        STID = $STID
     }
 }
 
 # END CONSTRUCTORS
-
-# LOG FUNCTIONS
-
-function Write-InfoLog {
-    param(
-        [parameter(Mandatory=$true)]
-        [string]$Message,
-        [parameter(Mandatory=$true)]
-        [int]$EventId,
-        [parameter()]
-        [bool]$OnlyEvent,
-        [parameter()]
-        [PSTypeName("CAMConfig")]$CAMConfig = $script:CAMConfig 
-    )
-    Write-CAMEventLog -Message $Message -Type "Information" -EventId $EventId -OnlyEvent $OnlyEvent -CAMConfig $CAMConfig
-}
-
-function Write-WarningLog {
-    param(
-        [parameter(Mandatory=$true)]
-        [string]$Message,
-        [parameter(Mandatory=$true)]
-        [int]$EventId,
-        [parameter()]
-        [bool]$OnlyEvent,
-        [parameter()]
-        [PSTypeName("CAMConfig")]$CAMConfig = $script:CAMConfig 
-    )
-    Write-CAMEventLog -Message $Message -Type "Warning" -EventId $EventId -Error $true -OnlyEvent $OnlyEvent -CAMConfig $CAMConfig
-}
-
-function Write-ErrorLog {
-    param(
-        [parameter(Mandatory=$true)]
-        [string]$Message,
-        [parameter(Mandatory=$true)]
-        [int]$EventId,
-        [parameter()]
-        [bool]$OnlyEvent,
-        [parameter()]
-        [PSTypeName("CAMConfig")]$CAMConfig = $script:CAMConfig 
-    )
-    Write-CAMEventLog -Message $Message -Type "Error" -EventId $EventId -OnlyEvent $OnlyEvent -CAMConfig $CAMConfig
-}
-
-function Write-CAMEventLog {
-    param(
-        [parameter(Mandatory=$true)]
-        [string]$Message,
-        [parameter(Mandatory=$true)]
-        [string]$Type,
-        [parameter(Mandatory=$true)]
-        [int]$EventId,
-        [parameter()]
-        [bool]$Error,
-        [parameter()]
-        [bool]$OnlyEvent,
-        [parameter()]
-        [PSTypeName("CAMConfig")]$CAMConfig = $script:CAMConfig 
-    )
-    if (!$OnlyEvent){
-        if (!$Error) {
-            Write-Output $Message
-        }
-        else {
-            Write-Error $Message
-        }
-    }
-    if ($CAMConfig.LogToWindowsEventLog){
-        if (((Get-EventLog -List).Log.Contains("CertificateAllocationModule"))){
-            New-EventLog -LogName "Application" -Source "CertificateAllocationModule"
-        }
-        Write-EventLog -LogName Application -EventID $EventId `
-            -EntryType $Type -Source "CertificateAllocationModule" -Message $Message
-    }
-}
-
-# END LOG FUNCTIONS
 
 # SETUP FUNCTIONS
 
@@ -187,14 +113,10 @@ Param(
             return $PfxFriendlyName
         }
         catch {
-            Write-ErrorLog -Message "certificate $($CAMConfig.KeyVaultCertificate) could not be imported with given password"`
-                 -EventId 2001 -OnlyEvent $true -CAMConfig $CAMConfig
             throw "certificate $($CAMConfig.KeyVaultCertificate) could not be imported with given password"
         }
     }
     else {
-        Write-ErrorLog -Message "AAD App certificate was not found at $($Path)"`
-                 -EventId 2002 -OnlyEvent $true -CAMConfig $CAMConfig
         throw "AAD App certificate was not found at $($Path)"
     }
 }
@@ -226,7 +148,8 @@ param(
         $script:CAMConfig.KeyVaultCertificatePassword = $CAMConfig.KeyVaultCertificatePassword
         $script:CAMConfig.KeyVault = $CAMConfig.KeyVault
         $script:CAMConfig.Environment = $CAMConfig.Environment
-        $script:CAMConfig.LogToWindowsEventLog = $CAMConfig.LogToWindowsEventLog
+        $script:CAMConfig.ApiBaseUrl = $CAMConfig.ApiBaseUrl
+        $script:CAMConfig.STID = $CAMConfig.STID
         return
     }
     if (Test-Path "$($Path)\CAMConfig.json") {
@@ -244,22 +167,20 @@ param(
             }
             $script:CAMConfig.KeyVault = $Json.KeyVault
             $script:CAMConfig.Environment = $Json.Environment
-            if ($Json.LogToWindowsEventLog) {
-                $script:CAMConfig.LogToWindowsEventLog = $Json.LogToWindowsEventLog
+            if ($Json.ApiBaseUrl){
+                $script:CAMConfig.ApiBaseUrl = $Json.ApiBaseUrl
             }
-            else {
-                $script:CAMConfig.LogToWindowsEventLog = $false
+            if ($Json.STID){
+                $script:CAMConfig.STID = $Json.STID
             }
             return $true
         }
         catch {
-            Write-WarningLog -Message "Unable to read config at $($Path)\CAMConfig.json, defaulting to hardcoded fallback values."`
-                -EventId 2003 -CAMConfig $CAMConfig
+            write-error "Unable to read config at $($Path)\CAMConfig.json, defaulting to hardcoded fallback values. Error: $_" 
         }
     }
     else {
-        Write-WarningLog -Message "Unable to read config at $($Path)\CAMConfig.json, defaulting to hardcoded fallback values."`
-                -EventId 2003 -CAMConfig $CAMConfig
+        write-error "Unable to find config at $($Path)\CAMConfig.json, defaulting to hardcoded fallback values."
     }
 }
 
@@ -267,13 +188,9 @@ param(
 .SYNOPSIS
     Schedule CAM to run every 5 minutes
 .DESCRIPTION
-    Create a scheduled task that will run the CAM module's Install-KVCertificates cmdlet at intervals, with 5 minutes being the default.
-.PARAMETER LocalManifest
-    (optional) The path to the local manifest to be used instead of a manifest in the KeyVault. 
-.PARAMETER Frequency
-    The frequency in minutes that the module should be run. This defaults to 5 minutes.
+    Create a scheduled task that will run the CAM module's Install-KVCertificates function every 5 minutes.
 .PARAMETER Path
-    The path to the directory that houses the CAM module you will use. This defaults to the current directory. 
+    The Path to the directory that houses the CAM module you will use. This defaults to the current directory. 
 .EXAMPLE
     C:\PS> New-CAMSchedule -Path "C:\CAM"
 #>
@@ -299,12 +216,220 @@ param(
         return $true
     }
     catch {
-        Write-WarningLog -Message "Unable to schedule CAM task. Exception $_"
-            -EventId 2004
+        write-error "Unable to schedule CAM task. Exception $_"
     }
 }
 
 # END SETUP FUNCTIONS
+
+# LOGGING FUNCTIONS
+
+function Log-Info {
+    param(
+        [parameter()]
+        [string]$Info
+    )
+
+}
+
+# END LOGGING FUNCTIONS
+
+# API FUNCTIONS
+
+function Update-Manifest {
+param(
+[parameter()]
+[PSCustomObject]$Manifest,
+[parameter()]
+[PSTypeName("CAMConfig")]$CAMConfig = $script:CAMConfig
+)
+    #Get list of the latest versions of each certificate
+    $OverallCertificatesList = Get-ApiCertificateVersionList -CAMConfig $CAMConfig
+    if ($OverallCertificatesList -eq $null) {
+        return $Manifest
+    }
+
+    #iterate through certificate objects in manifest   
+    if ($null -ne $Manifest.certificates) {
+        foreach ($Certificate in $Manifest.Certificates) {
+            # get latest api entry data
+            $update = $true
+            # Check if manifest has the most recent version
+            foreach($certVersion in $Certificate.certVersions) {
+                if ($OverallCertificatesList -contains ($certVersion.certVersion)) {
+                    $update = $false
+                }
+            }
+            # Check if any of the renewal Tasks are not completed
+            if ($update) {
+                $APIEntry = Get-APICertificateEntry -Cert $Certificate -CAMConfig $CAMConfig
+                if ($APIEntry -eq $null) {
+                    $update = $false
+                }         
+                else {
+                    foreach ($entry in $APIEntry.Certificates[0].LatestVersion.PartnerRenewalTaskIDs) {
+                        if ($entry.VSOTaskStatus -ne "Completed") {
+                            $update = $false
+                        }
+                    }
+                }   
+            }
+            if ($update){
+                # the api entry has a new version not present in the manifest
+                #if ($Certificate.Strategy -eq "Add"){
+                    # Add the certificate version to the manifest with deploy=true <#
+                $NewVersion = @{}
+                    # iterate through current certificate version and copy properties
+                $Certificate.certVersions[0].PsObject.Properties | foreach-object {
+                    $NewVersion.Add($_.name, $_.value)
+                }
+                # update certVersion property and deploy property
+                $NewVersion.certVersion = $APIEntry.Certificates[0].LatestVersion.VersionID
+                if ($NewVersion.Deploy -eq @("False")) { $NewVersion.Deploy -eq @("True") }
+                # prepend NewVersion
+                $Certificate.certVersions = , (New-Object PSObject -Property $NewVersion) + $Certificate.certVersions
+                #}
+                if ($Certificate.DeployStrategy -eq "Persist"){
+                    # Set the second most recent certificate deploy=false
+                    if ($Certificate.certVersions[1]){
+                        $Certificate.certVersions[1].Deploy = @("True")
+                    }
+                } 
+                else {
+                    if ($Certificate.certVersions[1]){
+                        $Certificate.certVersions[1].Deploy = @("False")
+                    }
+                }
+                # if a third (or more) certificate version exists, delete it
+                $Certificate.certVersions = @($Certificate.certVersions[0] , $Certificate.certVersions[1])
+            }
+        }
+    }
+    # Iterate through secret objects in manifest
+    if ($null -ne $Manifest.Secrets) {
+        foreach ($Certificate in $Manifest.Secrets) {
+            # get latest api entry data
+            $APIEntry = Get-APICertificateEntry -Cert $Certificate -CAMConfig $CAMConfig
+            $update = $true
+            if ($APIEntry -eq $null) {
+                $update = $false
+            } else {
+                # Check if API entry latest version is in the manifest
+                foreach($certVersion in $Certificate.certVersions) {
+                    if ($APIEntry.Certificates[0].LatestVersion.VersionID -eq $certVersion) {
+                        $update = $false
+                    }
+                }
+            }
+            if ($update){
+                foreach ($entry in $APIEntry.Certificates[0].LatestVersion.PartnerRenewalTaskIDs) {
+                    if ($entry.VSOTaskStatus -ne "Completed") {
+                        $update = $false
+                    }
+                }
+            }
+            if ($update){
+                # the api entry has a new version not present in the manifest
+                #if ($Certificate.Strategy -eq "Add"){
+                    # Add the certificate version to the manifest with deploy=true <#
+                $NewVersion = @{}
+                    # iterate through current certificate version and copy properties
+                $Certificate.certVersions[0].PsObject.Properties |  foreach-object {
+                    $NewVersion.Add($_.name, $_.value)
+                }
+                # update certVersion property and deploy property
+                $NewVersion.certVersion = $APIEntry.Certificates[0].LatestVersion.VersionID
+                if ($NewVersion.Deploy -eq @("False")) { $NewVersion.Deploy -eq @("True") }
+                # prepend NewVersion
+                $Certificate.certVersions = , (New-Object PSObject -Property $NewVersion) + $Certificate.certVersions
+                #}
+                if ($Certificate.DeployStrategy -eq "Persist"){
+                    # Set the second most recent certificate deploy=false
+                    if ($Certificate.certVersions[1]){
+                        $Certificate.certVersions[1].Deploy = @("True")
+                    }
+                } 
+                else {
+                    if ($Certificate.certVersions[1]){
+                        $Certificate.certVersions[1].Deploy = @("False")
+                    }
+                }
+                # if a third (or more) certificate version exists, delete it
+                $Certificate.certVersions = @($Certificate.certVersions[0] , $Certificate.certVersions[1])
+            }
+        }
+    }
+
+    # Update the manifest in the Key Vault
+    Set-AzureKeyVaultSecret -VaultName $CAMConfig.KeyVault -SecretName "$($CAMConfig.KeyVault)-Manifest" -SecretValue $Manifest
+    #$Manifest | ConvertTo-Json -depth 100 | Out-File "C:\Users\v-marqja\Desktop\Forerunners\CAM\CAM_VSO\output_$(get-date -format 'hhmmss').json"
+    return $Manifest
+}
+
+function Get-ApiCertificateEntry(){
+param(
+    [parameter()]
+    $Cert,
+    [parameter()]
+    [PSTypeName("CAMConfig")]$CAMConfig = $script:CAMConfig
+)
+    $Service = $CAMConfig.KeyVault
+    $ServiceTreeId = ""
+    if ($Cert.KeyVault) {
+        $Service = $Cert.KeyVault
+    }
+    foreach ($stid in $CAMConfig.STID) {
+        if ($stid.Service -eq $Service) {
+            $ServiceTreeId = $stid.STID
+        }
+    }
+    $Url = "$($CAMConfig.ApiBaseUrl)/v2/api/services/$ServiceTreeId/certificates/$($Cert.CertName)/status"
+    for ($x = 0; $x -lt 3; $x++){
+        try{
+            $Response = Invoke-WebRequest $url -TimeoutSec 30
+            continue
+        }
+        catch {
+            write-output "CAM: Unable to reach url: $url"
+            if ($x -eq 0) {
+                # we have exhausted 3 retries with no results
+                return $null
+            }
+        }
+
+    }
+    return ($Response.Content | ConvertFrom-Json)
+}
+
+function Get-ApiCertificateVersionList(){
+param(
+    [parameter()]
+    [PSTypeName("CAMConfig")]$CAMConfig = $script:CAMConfig
+)
+    $VersionList = @()
+    foreach ($STID in $CAMConfig.STID){
+        $Url = "$($CAMConfig.ApiBaseUrl)/v1/api/services/$($STID.STID)/certificates"
+        for ($x = 0; $x -lt 3; $x++){
+            try{
+                $Response = (Invoke-WebRequest $url -TimeoutSec 30).Content | ConvertFrom-Json
+                continue
+            }
+            catch {
+                write-output "CAM: Unable to reach url: $url"
+                if ($x -eq 0) {
+                    # we have exhausted 3 retries with no results
+                    return $null
+                }
+            }
+        }
+        foreach ($entry in $Response.Certificates) {
+            $VersionList = $VersionList + $entry.LatestVersion.VersionID
+        }
+    }
+    return $VersionList
+}
+
+# END API FUNCTIONS
 
 # AUTH FUNCTIONS
 
@@ -326,7 +451,7 @@ function Authenticate-WithUserProfile() {
         Import-AzureRmContext -Path "$Path\profile.ctx" -ErrorAction Stop
     }
     else {
-        Write-InfoLog -Message "Please log into Azure now" -EventId 1001
+        write-output 'Please log into Azure now'
 	    Login-AzureRMAccount -ErrorAction stop
     }
 }
@@ -351,7 +476,6 @@ param(
         Login-AzureRmAccount -ServicePrincipal -CertificateThumbprint $KeyVaultCertificateThumbprint -ApplicationId $CAMConfig.AADApplicationID -TenantId $CAMConfig.TenantId -ErrorAction Stop
     }
     catch {
-        Write-ErrorLog "Unable to login with Certificate $($CAMConfig.KeyVaultCertificate). Error: $_" -Message -EventId 2005 -OnlyEvent $true -CAMConfig $CAMConfig 
         throw "Unable to login with Certificate $($CAMConfig.KeyVaultCertificate). Error: $_"
     }
 }
@@ -363,8 +487,6 @@ param(
     Authenticate to AAD Application using a encrypted key that has been whitelisted with an applicable service principal.
 .PARAMETER CAMConfig
     (optional) A configuration object used to override the fallback variable and any present configuration files.
-.PARAMETER Key
-    (optional) An AAD application key to be used if it differs from the one being used in the CAMConfig.
 .EXAMPLE
     C:\PS> Authenticate-WithKey -CAMConfig $CustomConfig
 #>
@@ -373,14 +495,13 @@ param(
     [parameter()]
     [PSTypeName("CAMConfig")]$CAMConfig = $script:CAMConfig,
     [parameter()]
-    [SecureString]$Key = $CAMConfig.AADApplicationKey
+    [SecureString]$key = $CAMConfig.AADApplicationKey
 )
     try {
-        $Credential = New-Object System.Management.Automation.PSCredential($CAMConfig.AADApplicationID, $Key)
+        $Credential = New-Object System.Management.Automation.PSCredential($CAMConfig.AADApplicationID, $key)
         Login-AzureRmAccount -Credential $Credential -Tenant $CAMConfig.TenantId -ServicePrincipal -ErrorAction Stop
     }
     catch {
-        Write-ErrorLog "Unable to login with Key. Error: $_" -Message -EventId 2006 -OnlyEvent $true -CAMConfig $CAMConfig         
         throw "Unable to login with Key. Error: $_"
     }
 }
@@ -424,8 +545,6 @@ param(
     Iterate through the secrets and download or delete the certificate as specified in the certificateVersion "deploy" property. Repeat this process for the certificate section.
 .PARAMETER LocalManifest
     (optional) The full path to a valid json manifest file to be used in place of a passed in object or manifest available in the KeyVault.
-.PARAMETER Manifest
-    (optional) A PSCustom object containing the manifest information to override a local or keyvault sourced manifest.
 .PARAMETER CAMConfig
     (optional) A configuration object used to override the fallback variable and any present configuration files.
 .EXAMPLE
@@ -452,7 +571,7 @@ param(
     #    $CAMConfig.KeyVault = $Manifest.KeyVault
     #}
 
-    Write-InfoLog -Message "CAM: Config loaded" -EventId 1002 -CAMConfig $CAMConfig
+    write-output "CAM: Config loaded"
 
     #If certificate authentication is being used, install the required certificate
     if ($CAMConfig.KeyVaultCertificate -and $CAMConfig.KeyVaultCertificatePassword) {
@@ -462,7 +581,7 @@ param(
     #Authenticate with AAD App and KeyVault
     Authenticate-ToKeyVault -CAMConfig $CAMConfig | Out-Null
 
-    Write-InfoLog -Message  "CAM: Authenticated to KeyVault" -EventId 1003 -CAMConfig $CAMConfig    
+    write-output "CAM: Authenticated to KeyVault"
 
     # local path passed in
     if ($LocalManifest) { 
@@ -474,7 +593,7 @@ param(
             $json = $Manifest
         }
         else {
-            Write-ErrorLog "CAM: Manifest object was not of type System.Management.Automation.PSCustomObject" -EventId 2007 -CAMConfig $CAMConfig
+            write-output "CAM: Manifest object was not of type System.Management.Automation.PSCustomObject"
             return
         }
     }
@@ -484,25 +603,38 @@ param(
         $manifestName = "$($CAMConfig.KeyVault)-manifest"
         $manifest = Get-AzureKeyVaultSecret -VaultName $CAMConfig.KeyVault -Name $manifestName -ErrorAction Stop 
         $json = $manifest.SecretValueText | ConvertFrom-Json
+        if ($CAMConfig.ApiBaseUrl) {
+            # If manifest has not been updated within the last hour, check API
+            if ($manifest.attributes.updated -lt ((Get-Date)-(New-Timespan -Hours 1))) { 
+                $json = (Update-Manifest -Manifest $json -CAMConfig $CAMConfig)
+                write-output "CAM: Manifest updated in KeyVault"
+            }
+        }
     }
 
     $ManifestName = ""
     $DefaultKeyVault = $CAMConfig.KeyVault
+    #if ($json.ManifestName) {
+    #    $ManifestName = $json.ManifestName + " "
+    #}
+    write-output "CAM: $($ManifestName)Manifest loaded"
 
-    Write-InfoLog -Message  "CAM: $($ManifestName)Manifest loaded" -EventId 1004 -CAMConfig $CAMConfig    
+    #if ($json.Manifests){
+    #    write-output "CAM: Sub-Manifests detected..."
+    #    foreach ($manifest in $json.Manifests){
+    #        Install-KVCertificates -Manifest $manifest
+    #    }
+    #}
 
     # Iterate through Certificates section 
+    
     if ($null -ne $json.certificates) {
         foreach ($Certificate in $json.Certificates) {
             $CertificateName = $Certificate.CertName
             $CertificateVersions = $Certificate.CertVersions
-            $KeyStorageFlags = "DefaultKeySet"
-            $PublicKeyOnly = $false
+            $KeyStorageFlags = "PersistKeySet"
             if ($Certificate.KeyStorageFlags) {
                 $KeyStorageFlags = $Certificate.KeyStorageFlags
-            }
-            if ($Certificate.PublicKeyOnly){
-                $PublicKeyOnly = $true
             }
             # Iterate through Certificate versions
             foreach ($CertificateVersion in $CertificateVersions) {
@@ -519,11 +651,10 @@ param(
                 foreach ($deployment in $CertificateVersion.Deploy) {
                     if ($deployment -eq "True" -or $deployment -eq $CAMConfig.Environment) { 
                         # Install Certificate
-                        Write-InfoLog -Message  "CAM: Installing Certificate: $($CertificateName)" -EventId 1005 -CAMConfig $CAMConfig    
-                        
+                        write-output "CAM: Installing Certificate: $($CertificateName)"
                         Install-KVCertificateObject -CertName $CertificateName -CertVersion $CertificateVersion.CertVersion `
                             -CertStoreName $CertificateStoreName -CertStoreLocation $CertificateStoreLocation `
-                            -KeyStorageFlags $KeyStorageFlags -Export $Certificate.Export -PublicKeyOnly $PublicKeyOnly -CAMConfig $CAMConfig
+                            -KeyStorageFlags $KeyStorageFlags -Export $Certificate.Export -CAMConfig $CAMConfig
                         # Grant user access to private keys
                         if ($null -ne $Certificate.GrantAccess) {
                             Grant-CertificateAccess -CertName $CertificateName -User $CertificateVersion.GrantAccess -CertStoreName $CertificateStoreName `
@@ -534,7 +665,7 @@ param(
                 }
                 # Delete Certificate
                 if (!$downloaded) {
-                    Write-InfoLog -Message  "CAM: Deleting Certificate: $($CertificateName)" -EventId 1006 -CAMConfig $CAMConfig    
+                    write-output "CAM: Deleting Certificate: $($CertificateName)"
                     $RetrievedCertificate = Get-AzureKeyVaultCertificate -VaultName $CAMConfig.KeyVault -Name $CertificateName -Version $CertificateVersion.CertVersion
                     Remove-Certificate -certName $CertificateName -CertStoreLocation $CertificateStoreLocation `
                      -CertStoreName $CertificateStoreName -certThumbprint $RetrievedCertificate.Thumbprint
@@ -549,16 +680,13 @@ param(
             $CertificateName = $Secret.CertName
             $CertificateVersions = $Secret.CertVersions
 	        $Unstructured = $false
-            $KeyStorageFlags = "DefaultKeySet"
-            $PublicKeyOnly = $false
+	        $KeyStorageFlags = "PersistKeySet"
+            
             if ($Secret.Unstructured) {
                 $Unstructured = $true
             }
 	        if ($Secret.KeyStorageFlags) {
                 $KeyStorageFlags = $Secret.KeyStorageFlags
-            }
-            if ($Secret.PublicKeyOnly){
-                $PublicKeyOnly = $true
             }
             if ($Secret.KeyVault) {
                 $CAMConfig.KeyVault = $Secret.KeyVault
@@ -581,10 +709,10 @@ param(
                 foreach ($deployment in $CertificateVersion.Deploy) {
                     if ($deployment -eq "True" -or $deployment -eq $CAMConfig.Environment) { 
                         # Install Certificate
-                        Write-InfoLog -Message  "CAM: Installing Certificate: $($CertificateName)" -EventId 1005 -CAMConfig $CAMConfig    
+                        write-output "CAM: Installing Certificate: $($CertificateName)"
                         Install-KVSecretObject -CertName $CertificateName -CertVersion $CertificateVersion.CertVersion `
-                            -CertStoreName $CertificateStoreName -CertStoreLocation $CertificateStoreLocation -Unstructured $Unstructured `
-			                -KeyStorageFlags $KeyStorageFlags -Export $Secret.Export -PublicKeyOnly $PublicKeyOnly -CAMConfig $CAMConfig
+                            -CertStoreName $CertificateStoreName -CertStoreLocation $CertificateStoreLocation `
+			                -Unstructured $Unstructured -KeyStorageFlags $KeyStorageFlags -Export $Secret.Export -CAMConfig $CAMConfig
                         # Grant user access to private keys
                         if ($null -ne $Secret.GrantAccess) {
                             Grant-CertificateAccess -CertName $CertificateName -User $CertificateVersion.GrantAccess -CertStoreName $CertificateStoreName `
@@ -595,7 +723,7 @@ param(
                 }
                 # Delete Certificate
                 if (!$download) {
-                    Write-InfoLog -Message  "CAM: Deleting Certificate: $($CertificateName)" -EventId 1006 -CAMConfig $CAMConfig 
+                    write-output "CAM: Deleting Certificate: $($CertificateName)"
                     $Thumbprint = Get-SecretThumbprint -CertName $CertificateName -CertVersion $CertificateVersion.CertVersion -Unstructured $Unstructured -CAMConfig $CAMConfig
                     Remove-Certificate -CertName $CertificateName -CertStoreLocation $CertificateStoreLocation`
                      -CertStoreName $CertificateStoreName -CertThumbprint $Thumbprint
@@ -607,23 +735,17 @@ param(
 
 <#
 .SYNOPSIS
-    This function will download and install a certificate object from a key vault and install it on local machine.
+	This function will download and install a certificate object from a key vault and install it on local machine.
 .DESCRIPTION
     This script runs through key vault commands to download a certificate object from a key vault and install it locally.
 .PARAMETER CertName
-    Secret name in key vault.
+    secret name in key vault
 .PARAMETER CertVersion
     (optional) Version GUID of the secret you want to retrieve.
-.PARAMETER Export
-    (optional) Path to folder where the public key should be exported as .cert file.
 .PARAMETER CertStoreName
     (optional) Certificate Store Name that you would like the certificate installed to. Defaults to "My"
 .PARAMETER CertStoreLocation
     (optional) Certificate Store Location that you would like the certificate installed to. Defaults to "LocalMachine"
-.PARAMETER KeyStorageFlags
-    (optional) Key storage flags to be used when the certificate is imported to the store. Defaults to "PersistKeySet"
-.PARAMETER ReturnOutput
-    (optional) A switch to indicate you want the HashTable returned with the Friendly Name and Thumbprint of the certificate
 .PARAMETER CAMConfig
     (optional) A configuration object used to override the fallback variable and any present configuration files.
 .EXAMPLE
@@ -643,13 +765,7 @@ param(
     [parameter()]
     [string]$CertStoreLocation = "LocalMachine",
     [parameter()]
-    [string]$KeyStorageFlags = "DefaultKeySet",
-    [parameter()]
-    [bool]$PublicKeyOnly = $false,
-    [parameter()]
-    [switch]$ReturnOutput,
-    [parameter()]
-    [switch]$SkipAuth,
+    [string]$KeyStorageFlags = "PersistKeySet",
     [parameter()]
     $CAMConfig = $script:CAMConfig
 )
@@ -659,24 +775,20 @@ param(
         }
     }
     if ($CertVersion) {
-    	$Cert = Get-PrivateKeyVaultCert -CertName $CertName -CertVersion $CertVersion -CAMConfig $CamConfig
+    	$Cert = Get-AzureKeyVaultCertificate -VaultName $CAMConfig.KeyVault -Name $CertName -Version $CertVersion
     }
     else {
-    	$Cert = Get-PrivateKeyVaultCert -CertName $CertName -CAMConfig $CamConfig
+    	$Cert = Get-AzureKeyVaultCertificate -VaultName $CAMConfig.KeyVault -Name $CertName
     }
     if (-not $Cert) {
-        Write-ErrorLog -Message  "CAM: Certificate $($certName) does not exist in $($CAMConfig.KeyVault) KeyVault" -EventId 2008 -CAMConfig $CAMConfig 
+        write-output "CAM: Certificate $($certName) does not exist in $($CAMConfig.KeyVault) KeyVault"
         return
     }
     try {
-        $CertBytes = [Convert]::FromBase64String($Cert.SecretValueText)
-        $Pfx = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2($CertBytes, "", $keyStorageFlags)
-        if ($PublicKeyOnly -and $Pfx.HasPrivateKey) {
-            $Pfx.PrivateKey = $null
-        }
+        $Pfx = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2($Cert.Certificate.RawData, "", $keyStorageFlags)
     }
     catch {
-        Write-ErrorLog -Message "CAM: Certificate $Certname could not be imported with password. Exception: $_" -EventId 2009 -CAMConfig $CAMConfig         
+        write-output "CAM: Certificate $Certname could not be imported with password. Exception: $_"
         return
     }
     $Pfx.FriendlyName = $CertName
@@ -688,15 +800,8 @@ param(
         $Bytes = $Pfx.Export("Cert")
         [IO.File]::WriteAllBytes("$Export\$CertName.cer", $Bytes)
     }
-    $Output = @{
-        FriendlyName=$pfx.FriendlyName
-        Thumbprint=$pfx.Thumbprint
-    }
     $Pfx.Dispose()
-    Write-InfoLog -Message "CAM: Installed Certificate $($CertName) to $CertStoreLocation\$CertStoreName store" -EventId 1007 -CAMConfig $CAMConfig             
-    if ($ReturnOutput) {
-        return $Output
-    }
+    write-output "CAM: Installed Certificate $($CertName) to $CertStoreLocation\$CertStoreName store"
 }
 
 <#
@@ -709,18 +814,10 @@ param(
     Cert name in key vault
 .PARAMETER CertVersion
     (optional) Version GUID of the secret you want to retrieve.
-.PARAMETER Export
-    (optional) Path to folder where the public key should be exported as .cert file.
 .PARAMETER CertStoreName
     (optional) Certificate Store Name that you would like the certificate installed to. Defaults to "My"
 .PARAMETER CertStoreLocation
     (optional) Certificate Store Location that you would like the certificate installed to. Defaults to "LocalMachine"
-.PARAMETER KeyStorageFlags
-    (optional) Key storage flags to be used when the certificate is imported to the store. Defaults to "PersistKeySet"
-.PARAMETER Unstructured
-    If true, will download the secret without disassembling it as a JSON object, and import with no password. Defaults to "false"
-.PARAMETER ReturnOutput
-    (optional) A switch to indicate you want the HashTable returned with the Friendly Name and Thumbprint of the certificate
 .PARAMETER CAMConfig
     (optional) A configuration object used to override the fallback variable and any present configuration files.
 .EXAMPLE
@@ -740,15 +837,11 @@ param(
     [parameter()]
     [string]$CertStoreLocation = "LocalMachine",
     [parameter()]
-    [string]$keyStorageFlags = "DefaultKeySet",
-    [parameter()]
-    [bool]$PublicKeyOnly = $false,
-    [parameter()]
-    [switch]$ReturnOutput,
-    [parameter()]
-    [switch]$SkipAuth,
+    [string]$keyStorageFlags = "PersistKeySet",
     [parameter()]
     [bool]$Unstructured = $false,
+    [parameter()]
+    [bool]$SkipAuth = $false,
     [parameter()]
     $CAMConfig = $script:CAMConfig
 )
@@ -764,7 +857,7 @@ param(
     	$Secret = Get-PrivateKeyVaultCert -CertName $CertName -CAMConfig $CamConfig
     }
     if (-not $Secret) {
-        Write-ErrorLog -Message  "CAM: Certificate $($certName) does not exist in $($CAMConfig.KeyVault) KeyVault" -EventId 2008 -CAMConfig $CAMConfig         
+        write-output "CAM: Certificate $($certName) does not exist in $($CAMConfig.KeyVault) KeyVault"
         return
     }
     if ($Unstructured) {
@@ -778,7 +871,7 @@ param(
             $CertBytes = [System.Convert]::FromBase64String($CertJson.data)
         }
         catch {
-            Write-ErrorLog -Message "CAM: Certificate $($CertName) has invalid JSON, Unable to install" -EventId 2010 -CAMConfig $CAMConfig                     
+            write-output "CAM: Certificate $($CertName) has invalid JSON, Unable to install"
             return
         }
     }
@@ -789,12 +882,9 @@ param(
         else {
             $Pfx = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2($CertBytes, $Password, $keyStorageFlags)
         }
-        if ($PublicKeyOnly -and $Pfx.HasPrivateKey) {
-            $Pfx.PrivateKey = $null
-        }
     }
     catch {
-        Write-ErrorLog -Message "CAM: Certificate $Certname could not be imported with password. Exception: $_" -EventId 2009 -CAMConfig $CAMConfig         
+        write-output "CAM: Certificate $Certname could not be imported with password. Exception: $_"
         return
     }
     $Pfx.FriendlyName = $CertName
@@ -806,15 +896,8 @@ param(
         $Bytes = $Pfx.Export("Cert")
         [IO.File]::WriteAllBytes("$Export\$CertName.cer", $Bytes)
     }
-    $Output = @{
-        FriendlyName=$pfx.FriendlyName
-        Thumbprint=$pfx.Thumbprint
-    }
     $Pfx.Dispose()
-    Write-InfoLog -Message "CAM: Installed Certificate $($CertName) to $CertStoreLocation\$CertStoreName store" -EventId 1007 -CAMConfig $CAMConfig             
-    if ($ReturnOutput) {
-        return $Output
-    }
+    write-output "CAM: Installed Certificate $($CertName) to $CertStoreLocation\$CertStoreName store"
 }
 
 <# 
@@ -879,11 +962,10 @@ param(
             try {
                 #find the certificate with the earliest expiry of those matching the CertName parameter
                 $CertLocation = (Get-ChildItem "Cert:\$CertStoreLocation\$CertStoreName" | Where-Object {$_.FriendlyName -match $CertName} | Sort-Object -Property NotAfter)[0].PSPath
-                Write-WarningLog -Message "CAM: Certificate Thumbprint not provided for $CertName, attempting to delete certificate with earliest expiry." `
-                    -EventId 2011 -CAMConfig $CAMConfig             
+                Write-Output "CAM: Certificate Thumbprint not provided for $CertName, attempting to delete certificate with earliest expiry."
             }
             catch {
-                Write-ErrorLog -Message  "CAM: Certificate $($certName) does not exist in $($CAMConfig.KeyVault) KeyVault" -EventId 2008 -CAMConfig $CAMConfig         
+                write-output "CAM: Certificate $($CertName) does not exist in $($CertStoreLocation)\$($CertStoreName) store"
             }
         }
         else {
@@ -892,14 +974,14 @@ param(
         }
         if (test-path $CertLocation) {
             Remove-Item $CertLocation
-            Write-InfoLog -Message  "CAM: Certificate $($CertName) deleted from $($CertStoreLocation)\$($CertStoreName) store" -EventId 1008 -CAMConfig $CAMConfig         
+            write-output "CAM: Certificate $($CertName) deleted from $($CertStoreLocation)\$($CertStoreName) store"
         }
         else {
-            Write-ErrorLog -Message  "CAM: Certificate $($CertName) does not exist in $($CertStoreLocation)\$($CertStoreName) store" -EventId 2012 -CAMConfig $CAMConfig         
+            write-output "CAM: Certificate $($CertName) does not exist in $($CertStoreLocation)\$($CertStoreName) store"
         }
     }
     catch {
-        Write-ErrorLog -Message "CAM: Failed to delete certificate $($CertLocation). Exception: $_" -EventId 2013 -CAMConfig $CAMConfig         
+        write-output "CAM: Failed to delete certificate $($CertLocation). Exception: $_" 
     }
 }
 
@@ -942,7 +1024,7 @@ param(
                 $acl=(Get-Item $fullpath -ErrorAction Stop).GetAccessControl('Access')
             }
             catch {
-                Write-ErrorLog -Message "CAM: Unable to find Machine Key path for certificate $($CertName), Grant-CertificateAccess failed." -EventId 2014 -CAMConfig $CAMConfig                         
+                write-output "CAM: Unable to find Machine Key path for certificate $($CertName), Grant-CertificateAccess failed."
                 return
             }
             $permission=$User, "Read", "Allow"
@@ -950,16 +1032,15 @@ param(
 	        $acl.SetAccessRule($accessRule)
             try {
                 Set-Acl -Path $fullPath -AclObject $acl
-                Write-InfoLog -Message "CAM: Granted access to $User for certificate $CertName in $CertStoreLocation\$CertStoreName store." -EventId 1009 -CAMConfig $CAMConfig                         
+                Write-Output "CAM: Granted access to $User for certificate $CertName in $CertStoreLocation\$CertStoreName store."
             }
             catch {
-                Write-ErrorLog -Message "CAM: Unable to grant access to $User for certificate $CertName in $CertStoreLocation\$CertStoreName store. Exception: $_" `
-                    -EventId 2015 -CAMConfig $CAMConfig                         
+                Write-Output "CAM: Unable to grant access to $User for certificate $CertName in $CertStoreLocation\$CertStoreName store. Exception: $_"
             }
         }
     }
     catch {
-        Write-ErrorLog -Message "CAM: Grant-CertificateAccess failed. Exception: $_" -EventId 2016 -CAMConfig $CAMConfig                         
+        Write-Output "CAM: Grant-CertificateAccess failed. Exception: $_"
     }
 }
 
@@ -972,8 +1053,6 @@ param(
     The friendly name of the certificate you would like to remove.
 .PARAMETER CertVersion
     (optional) Version GUID of the secret you want to retrieve.
-.PARAMETER Unstructured
-    If true, will download the secret without disassembling it as a JSON object, and import with no password. Defaults to "false"
 .PARAMETER CAMConfig
     (optional) A configuration object used to override the fallback variable and any present configuration files.
 .EXAMPLE
@@ -998,7 +1077,7 @@ param(
     }
     $Password = ''
     if (-not $Secret) {
-        Write-ErrorLog -Message  "CAM: Certificate $($certName) does not exist in $($CAMConfig.KeyVault) KeyVault" -EventId 2008 -CAMConfig $CAMConfig 
+        write-output "CAM: Certificate $($certName) does not exist in $($CAMConfig.KeyVault) KeyVault"
         return
     }
     if ($Unstructured) {
@@ -1012,7 +1091,7 @@ param(
             $CertBytes = [System.Convert]::FromBase64String($CertJson.data)
         }
         catch {
-            Write-ErrorLog -Message "CAM: Certificate $($CertName) has invalid JSON, Unable to install" -EventId 2010 -CAMConfig $CAMConfig                     
+            write-output "CAM: Certificate $($CertName) has invalid JSON, Get-SecretThumbprint failed"
             return
         }
     }
@@ -1020,7 +1099,7 @@ param(
         $Pfx = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2($CertBytes, $Password, "PersistKeySet")
     }
     catch {
-        Write-ErrorLog -Message "CAM: Certificate $Certname could not be imported with password. Exception: $_" -EventId 2009 -CAMConfig $CAMConfig         
+        write-output "CAM: Certificate $Certname could not be imported with password. Exception: $_"
         return
     }
     $Thumbprint = $Pfx.Thumbprint
@@ -1067,3 +1146,5 @@ Export-ModuleMember -Function Install-KVCertificates
 Export-ModuleMember -Function Install-KVCertificateObject
 Export-ModuleMember -Function Install-KVSecretObject
 Export-ModuleMember -Function Remove-Certificate
+
+Export-ModuleMember -Function Update-Manifest
