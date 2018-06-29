@@ -173,33 +173,34 @@ param(
     if ($null -ne $Manifest.certificates) {
         foreach ($Certificate in $Manifest.Certificates) {
             # get latest api entry data
+			$APIEntry = Get-APICertificateEntry -Cert $Certificate -CAMConfig $CAMConfig
             $update = $true
-            # Check if manifest has the most recent version
-            foreach($certVersion in $Certificate.certVersions) {
-                if ($OverallCertificatesList -contains ($certVersion.certVersion)) {
-                    $update = $false
+
+            if ($APIEntry -eq $null) {
+                $update = $false
+            } 
+			else {
+                # Check if API entry latest version is in the manifest
+                foreach($certVersion in $Certificate.certVersions) {
+                    if ($APIEntry.Certificates[0].LatestVersion.VersionID -eq $certVersion) {
+                        $update = $false
+                    }
                 }
             }
-            # Check if any of the renewal Tasks are not completed
-            if ($update) {
-                $APIEntry = Get-APICertificateEntry -Cert $Certificate -CAMConfig $CAMConfig
-                if ($APIEntry -eq $null) {
-                    $update = $false
-                }         
-                else {
-                    foreach ($entry in $APIEntry.Certificates[0].LatestVersion.PartnerRenewalTaskIDs) {
-                        if ($entry.VSOTaskStatus -ne "Completed") {
-                            $update = $false
-                        }
+			if ($update) {
+				# Check if there are partner teams to whitelist the certificate
+				# If so, check if those partner teams have completed whitelist task
+                foreach ($entry in $APIEntry.Certificates[0].LatestVersion.PartnerRenewalTaskIDs) {
+                    if ($entry.VSOTaskStatus -ne "Completed") {
+                        $update = $false
                     }
-                }   
+                }
             }
             if ($update){
                 # the api entry has a new version not present in the manifest
-                #if ($Certificate.Strategy -eq "Add"){
-                    # Add the certificate version to the manifest with deploy=true <#
+                # Add the certificate version to the manifest with deploy=true <#
                 $NewVersion = @{}
-                    # iterate through current certificate version and copy properties
+                # iterate through current certificate version and copy properties
                 $Certificate.certVersions[0].PsObject.Properties | foreach-object {
                     $NewVersion.Add($_.name, $_.value)
                 }
@@ -208,7 +209,6 @@ param(
                 if ($NewVersion.Deploy -eq @("False")) { $NewVersion.Deploy -eq @("True") }
                 # prepend NewVersion
                 $Certificate.certVersions = , (New-Object PSObject -Property $NewVersion) + $Certificate.certVersions
-                #}
                 if ($Certificate.DeployStrategy -eq "Persist"){
                     # Set the second most recent certificate deploy=false
                     if ($Certificate.certVersions[1]){
@@ -231,6 +231,7 @@ param(
             # get latest api entry data
             $APIEntry = Get-APICertificateEntry -Cert $Certificate -CAMConfig $CAMConfig
             $update = $true
+
             if ($APIEntry -eq $null) {
                 $update = $false
             } 
