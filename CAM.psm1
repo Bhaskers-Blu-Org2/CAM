@@ -48,6 +48,12 @@ function New-CAMConfig() {
 
         [parameter(mandatory=$true)]
         [string]$Environment,
+		
+		[parameter(mandatory=$false)]
+        [string]$ApiBaseUrl,
+
+        [parameter(mandatory=$false)]
+        [PSCustomObject]$SID,
 
         [parameter()]
         [bool]$LogToWindowsEventLog = $false
@@ -62,6 +68,8 @@ function New-CAMConfig() {
         KeyVaultCertificatePassword = $KeyVaultCertificatePassword
         KeyVault = $KeyVault
         Environment = $Environment
+		APIBaseUrl = $ApiBaseUrl
+		SID = $SID
         LogToWindowsEventLog = $LogToWindowsEventLog
     }
 }
@@ -225,7 +233,8 @@ param(
             $update = $true
             if ($APIEntry -eq $null) {
                 $update = $false
-            } else {
+            } 
+			else {
                 # Check if API entry latest version is in the manifest
                 foreach($certVersion in $Certificate.certVersions) {
                     if ($APIEntry.Certificates[0].LatestVersion.VersionID -eq $certVersion) {
@@ -233,7 +242,9 @@ param(
                     }
                 }
             }
-            if ($update){
+            if ($update) {
+				# Check if there are partner teams to whitelist the certificate
+				# If so, check if those partner teams have completed whitelist task
                 foreach ($entry in $APIEntry.Certificates[0].LatestVersion.PartnerRenewalTaskIDs) {
                     if ($entry.VSOTaskStatus -ne "Completed") {
                         $update = $false
@@ -242,10 +253,9 @@ param(
             }
             if ($update){
                 # the api entry has a new version not present in the manifest
-                #if ($Certificate.Strategy -eq "Add"){
-                    # Add the certificate version to the manifest with deploy=true <#
+                # Add the certificate version to the manifest with deploy=true 
                 $NewVersion = @{}
-                    # iterate through current certificate version and copy properties
+                # iterate through current certificate version and copy properties
                 $Certificate.certVersions[0].PsObject.Properties |  foreach-object {
                     $NewVersion.Add($_.name, $_.value)
                 }
@@ -254,7 +264,7 @@ param(
                 if ($NewVersion.Deploy -eq @("False")) { $NewVersion.Deploy -eq @("True") }
                 # prepend NewVersion
                 $Certificate.certVersions = , (New-Object PSObject -Property $NewVersion) + $Certificate.certVersions
-                #}
+                
                 if ($Certificate.DeployStrategy -eq "Persist"){
                     # Set the second most recent certificate deploy=false
                     if ($Certificate.certVersions[1]){
@@ -274,7 +284,6 @@ param(
 
     # Update the manifest in the Key Vault
     Set-AzureKeyVaultSecret -VaultName $CAMConfig.KeyVault -SecretName "$($CAMConfig.KeyVault)-Manifest" -SecretValue $Manifest
-    #$Manifest | ConvertTo-Json -depth 100 | Out-File "C:\Users\v-marqja\Desktop\Forerunners\CAM\CAM_VSO\output_$(get-date -format 'hhmmss').json"
     return $Manifest
 }
 
@@ -286,23 +295,23 @@ param(
     [PSTypeName("CAMConfig")]$CAMConfig = $script:CAMConfig
 )
     $Service = $CAMConfig.KeyVault
-    $ServiceTreeId = ""
+    $ServiceId = ""
     if ($Cert.KeyVault) {
         $Service = $Cert.KeyVault
     }
-    foreach ($stid in $CAMConfig.STID) {
-        if ($stid.Service -eq $Service) {
-            $ServiceTreeId = $stid.STID
+    foreach ($sid in $CAMConfig.SID) {
+        if ($sid.Service -eq $Service) {
+            $ServiceId = $sid.SID
         }
     }
-    $Url = "$($CAMConfig.ApiBaseUrl)/v2/api/services/$ServiceTreeId/certificates/$($Cert.CertName)/status"
+    $Url = "$($CAMConfig.ApiBaseUrl)/v2/api/services/$ServiceId/certificates/$($Cert.CertName)/status"
     for ($x = 0; $x -lt 3; $x++){
         try{
             $Response = Invoke-WebRequest $url -TimeoutSec 30
             continue
         }
         catch {
-            write-output "CAM: Unable to reach url: $url"
+            Write-WarningLog -Message "CAM: Unable to reach url: $url" -EventId 2017 -CAMConfig $CAMConfig
             if ($x -eq 0) {
                 # we have exhausted 3 retries with no results
                 return $null
@@ -319,15 +328,15 @@ param(
     [PSTypeName("CAMConfig")]$CAMConfig = $script:CAMConfig
 )
     $VersionList = @()
-    foreach ($STID in $CAMConfig.STID){
-        $Url = "$($CAMConfig.ApiBaseUrl)/v1/api/services/$($STID.STID)/certificates"
+    foreach ($SID in $CAMConfig.SID){
+        $Url = "$($CAMConfig.ApiBaseUrl)/v1/api/services/$($SID.SID)/certificates"
         for ($x = 0; $x -lt 3; $x++){
             try{
                 $Response = (Invoke-WebRequest $url -TimeoutSec 30).Content | ConvertFrom-Json
                 continue
             }
             catch {
-                write-output "CAM: Unable to reach url: $url"
+				Write-WarningLog -Message "CAM: Unable to reach url: $url" -EventId 2017 -CAMConfig $CAMConfig
                 if ($x -eq 0) {
                     # we have exhausted 3 retries with no results
                     return $null
