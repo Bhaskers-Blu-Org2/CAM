@@ -48,6 +48,12 @@ function New-CAMConfig() {
 
         [parameter(mandatory=$true)]
         [string]$Environment,
+		
+		[parameter(mandatory=$false)]
+        [string]$ApiBaseUrl,
+
+        [parameter(mandatory=$false)]
+        [PSCustomObject]$SID,
 
         [parameter()]
         [bool]$LogToWindowsEventLog = $false
@@ -62,6 +68,8 @@ function New-CAMConfig() {
         KeyVaultCertificatePassword = $KeyVaultCertificatePassword
         KeyVault = $KeyVault
         Environment = $Environment
+		APIBaseUrl = $ApiBaseUrl
+		SID = $SID
         LogToWindowsEventLog = $LogToWindowsEventLog
     }
 }
@@ -145,6 +153,206 @@ function Write-CAMEventLog {
 }
 
 # END LOG FUNCTIONS
+
+# API FUNCTIONS
+
+function Update-Manifest {
+param(
+[parameter()]
+[PSCustomObject]$Manifest,
+[parameter()]
+[PSTypeName("CAMConfig")]$CAMConfig = $script:CAMConfig
+)
+    #Get list of the latest versions of each certificate
+    $OverallCertificatesList = Get-ApiCertificateVersionList -CAMConfig $CAMConfig
+    if ($OverallCertificatesList -eq $null) {
+        return $Manifest
+    }
+
+    #iterate through certificate objects in manifest   
+    if ($null -ne $Manifest.certificates) {
+        foreach ($Certificate in $Manifest.Certificates) {
+            # get latest api entry data
+			$APIEntry = Get-APICertificateEntry -Cert $Certificate -CAMConfig $CAMConfig
+            $update = $true
+
+            if ($APIEntry -eq $null) {
+                $update = $false
+            } 
+			else {
+                # Check if API entry latest version is in the manifest
+                foreach($certVersion in $Certificate.certVersions) {
+                    if ($APIEntry.Certificates[0].LatestVersion.VersionID -eq $certVersion) {
+                        $update = $false
+                    }
+                }
+            }
+			if ($update) {
+				# Check if there are partner teams to whitelist the certificate
+				# If so, check if those partner teams have completed whitelist task
+                foreach ($entry in $APIEntry.Certificates[0].LatestVersion.PartnerRenewalTaskIDs) {
+                    if ($entry.VSOTaskStatus -ne "Completed") {
+                        $update = $false
+                    }
+                }
+            }
+            if ($update){
+                # the api entry has a new version not present in the manifest
+                # Add the certificate version to the manifest with deploy=true <#
+                $NewVersion = @{}
+                # iterate through current certificate version and copy properties
+                $Certificate.certVersions[0].PsObject.Properties | foreach-object {
+                    $NewVersion.Add($_.name, $_.value)
+                }
+                # update certVersion property and deploy property
+                $NewVersion.certVersion = $APIEntry.Certificates[0].LatestVersion.VersionID
+                if ($NewVersion.Deploy -eq @("False")) { $NewVersion.Deploy -eq @("True") }
+                # prepend NewVersion
+                $Certificate.certVersions = , (New-Object PSObject -Property $NewVersion) + $Certificate.certVersions
+                if ($Certificate.DeployStrategy -eq "Persist"){
+                    # Set the second most recent certificate deploy=false
+                    if ($Certificate.certVersions[1]){
+                        $Certificate.certVersions[1].Deploy = @("True")
+                    }
+                } 
+                else {
+                    if ($Certificate.certVersions[1]){
+                        $Certificate.certVersions[1].Deploy = @("False")
+                    }
+                }
+                # if a third (or more) certificate version exists, delete it
+                $Certificate.certVersions = @($Certificate.certVersions[0] , $Certificate.certVersions[1])
+            }
+        }
+    }
+    # Iterate through secret objects in manifest
+    if ($null -ne $Manifest.Secrets) {
+        foreach ($Certificate in $Manifest.Secrets) {
+            # get latest api entry data
+            $APIEntry = Get-APICertificateEntry -Cert $Certificate -CAMConfig $CAMConfig
+            $update = $true
+
+            if ($APIEntry -eq $null) {
+                $update = $false
+            } 
+			else {
+                # Check if API entry latest version is in the manifest
+                foreach($certVersion in $Certificate.certVersions) {
+                    if ($APIEntry.Certificates[0].LatestVersion.VersionID -eq $certVersion) {
+                        $update = $false
+                    }
+                }
+            }
+            if ($update) {
+				# Check if there are partner teams to whitelist the certificate
+				# If so, check if those partner teams have completed whitelist task
+                foreach ($entry in $APIEntry.Certificates[0].LatestVersion.PartnerRenewalTaskIDs) {
+                    if ($entry.VSOTaskStatus -ne "Completed") {
+                        $update = $false
+                    }
+                }
+            }
+            if ($update){
+                # the api entry has a new version not present in the manifest
+                # Add the certificate version to the manifest with deploy=true 
+                $NewVersion = @{}
+                # iterate through current certificate version and copy properties
+                $Certificate.certVersions[0].PsObject.Properties |  foreach-object {
+                    $NewVersion.Add($_.name, $_.value)
+                }
+                # update certVersion property and deploy property
+                $NewVersion.certVersion = $APIEntry.Certificates[0].LatestVersion.VersionID
+                if ($NewVersion.Deploy -eq @("False")) { $NewVersion.Deploy -eq @("True") }
+                # prepend NewVersion
+                $Certificate.certVersions = , (New-Object PSObject -Property $NewVersion) + $Certificate.certVersions
+                
+                if ($Certificate.DeployStrategy -eq "Persist"){
+                    # Set the second most recent certificate deploy=false
+                    if ($Certificate.certVersions[1]){
+                        $Certificate.certVersions[1].Deploy = @("True")
+                    }
+                } 
+                else {
+                    if ($Certificate.certVersions[1]){
+                        $Certificate.certVersions[1].Deploy = @("False")
+                    }
+                }
+                # if a third (or more) certificate version exists, delete it
+                $Certificate.certVersions = @($Certificate.certVersions[0] , $Certificate.certVersions[1])
+            }
+        }
+    }
+
+    # Update the manifest in the Key Vault
+    Set-AzureKeyVaultSecret -VaultName $CAMConfig.KeyVault -SecretName "$($CAMConfig.KeyVault)-Manifest" -SecretValue $Manifest
+    return $Manifest
+}
+
+function Get-ApiCertificateEntry(){
+param(
+    [parameter()]
+    $Cert,
+    [parameter()]
+    [PSTypeName("CAMConfig")]$CAMConfig = $script:CAMConfig
+)
+    $Service = $CAMConfig.KeyVault
+    $ServiceId = ""
+    if ($Cert.KeyVault) {
+        $Service = $Cert.KeyVault
+    }
+    foreach ($sid in $CAMConfig.SID) {
+        if ($sid.Service -eq $Service) {
+            $ServiceId = $sid.SID
+        }
+    }
+    $Url = "$($CAMConfig.ApiBaseUrl)/v2/api/services/$ServiceId/certificates/$($Cert.CertName)/status"
+    for ($x = 0; $x -lt 3; $x++){
+        try{
+            $Response = Invoke-WebRequest $url -TimeoutSec 30
+            continue
+        }
+        catch {
+            Write-WarningLog -Message "CAM: Unable to reach url: $url" -EventId 2017 -CAMConfig $CAMConfig
+            if ($x -eq 0) {
+                # we have exhausted 3 retries with no results
+                return $null
+            }
+        }
+
+    }
+    return ($Response.Content | ConvertFrom-Json)
+}
+
+function Get-ApiCertificateVersionList(){
+param(
+    [parameter()]
+    [PSTypeName("CAMConfig")]$CAMConfig = $script:CAMConfig
+)
+    $VersionList = @()
+    foreach ($SID in $CAMConfig.SID){
+        $Url = "$($CAMConfig.ApiBaseUrl)/v1/api/services/$($SID.SID)/certificates"
+        for ($x = 0; $x -lt 3; $x++){
+            try{
+                $Response = (Invoke-WebRequest $url -TimeoutSec 30).Content | ConvertFrom-Json
+                continue
+            }
+            catch {
+				Write-WarningLog -Message "CAM: Unable to reach url: $url" -EventId 2017 -CAMConfig $CAMConfig
+                if ($x -eq 0) {
+                    # we have exhausted 3 retries with no results
+                    return $null
+                }
+            }
+        }
+        foreach ($entry in $Response.Certificates) {
+            $VersionList = $VersionList + $entry.LatestVersion.VersionID
+        }
+    }
+    return $VersionList
+}
+
+# END API FUNCTIONS
+
 
 # SETUP FUNCTIONS
 
@@ -484,6 +692,13 @@ param(
         $manifestName = "$($CAMConfig.KeyVault)-manifest"
         $manifest = Get-AzureKeyVaultSecret -VaultName $CAMConfig.KeyVault -Name $manifestName -ErrorAction Stop 
         $json = $manifest.SecretValueText | ConvertFrom-Json
+		if ($CAMConfig.ApiBaseUrl) {
+            # If manifest has not been updated within the last hour, check API
+            if ($manifest.attributes.updated -lt ((Get-Date)-(New-Timespan -Hours 1))) { 
+                $json = (Update-Manifest -Manifest $json -CAMConfig $CAMConfig)
+                write-output "CAM: Manifest updated in KeyVault"
+            }
+        }
     }
 
     $ManifestName = ""
