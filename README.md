@@ -7,8 +7,8 @@
 - Allow properties to decouple certificate deployment and code deployment. 
 
 # Auto renewal overview
-- A certificate in the KeyVault reaches a pre-determined point in its lifetime where it is configured to make a request to SSLAdmin for renewal. 
-- The certificate is renewed by SSLAdmin and put into the KeyVault.  
+- A certificate in the KeyVault reaches a pre-determined point in its lifetime where it is configured to make a request to a CertificateAuthority for renewal. 
+- The certificate is renewed by a CertificateAuthority and put into the KeyVault.  
 
 # Certificate download overview
 - The CAM is run either during deployment of a new VM, or periodically through a scheduled task. 
@@ -39,7 +39,7 @@ Install-Module -Name "CAM"
 **1.5** You can now have limited information returned to you about an installed certificate when calling the `Install-KVCertificateObject` or `Install-KVSecretObject` cmdlets by passing the `-ReturnOutput` switch. Below is an example of the call and output:
 ```Powershell
 >Install-KVCertificateObject -CertName "MyCertificate" -ReturnOutput
->CAM: Installed Certificate SSLAdmin to LocalMachine\My store
+>CAM: Installed Certificate MyCertificateAdmin to LocalMachine\My store
 
 Name                           Value
 ----                           -----
