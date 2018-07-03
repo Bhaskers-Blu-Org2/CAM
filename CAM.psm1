@@ -48,6 +48,15 @@ function New-CAMConfig() {
 
         [parameter(mandatory=$true)]
         [string]$Environment,
+		
+        [parameter(mandatory=$false)]
+        [string]$ApiAADApplicationId,
+
+		[parameter(mandatory=$false)]
+        [string]$ApiBaseUrl,
+
+        [parameter(mandatory=$false)]
+        [PSCustomObject]$SID,
 
         [parameter()]
         [bool]$LogToWindowsEventLog = $false
@@ -62,6 +71,9 @@ function New-CAMConfig() {
         KeyVaultCertificatePassword = $KeyVaultCertificatePassword
         KeyVault = $KeyVault
         Environment = $Environment
+        ApiAADApplicationId = $ApiAADApplicationId
+		APIBaseUrl = $ApiBaseUrl
+		SID = $SID
         LogToWindowsEventLog = $LogToWindowsEventLog
     }
 }
@@ -146,6 +158,244 @@ function Write-CAMEventLog {
 
 # END LOG FUNCTIONS
 
+# API FUNCTIONS
+
+function Update-Manifest {
+param(
+[parameter()]
+[PSCustomObject]$Manifest,
+[parameter()]
+[PSTypeName("CAMConfig")]$CAMConfig = $script:CAMConfig
+)
+    #Get list of the latest versions of each certificate
+    $OverallCertificatesList = Get-ApiCertificateVersionList -CAMConfig $CAMConfig
+    if ($OverallCertificatesList -eq $null) {
+        return $Manifest
+    }
+
+    #iterate through certificate objects in manifest   
+    if ($null -ne $Manifest.certificates) {
+        foreach ($Certificate in $Manifest.Certificates) {
+            # get latest api entry data
+			$APIEntry = Get-APICertificateEntry -Cert $Certificate -CAMConfig $CAMConfig
+            $update = $true
+
+            if ($APIEntry -eq $null) {
+                $update = $false
+            } 
+			else {
+                # Check if API entry latest version is in the manifest
+                foreach($certVersion in $Certificate.certVersions) {
+                    if ($APIEntry.Certificates[0].LatestVersion.VersionID -eq $certVersion) {
+                        $update = $false
+                    }
+                }
+            }
+			if ($update) {
+				# Check if there are partner teams to whitelist the certificate
+				# If so, check if those partner teams have completed whitelist task
+                foreach ($entry in $APIEntry.Certificates[0].LatestVersion.PartnerRenewalTaskIDs) {
+                    if ($entry.VSOTaskStatus -ne "Completed") {
+                        $update = $false
+                    }
+                }
+            }
+            if ($update){
+                # the api entry has a new version not present in the manifest
+                # Add the certificate version to the manifest with deploy=true <#
+                $NewVersion = @{}
+                # iterate through current certificate version and copy properties
+                $Certificate.certVersions[0].PsObject.Properties | foreach-object {
+                    $NewVersion.Add($_.name, $_.value)
+                }
+                # update certVersion property and deploy property
+                $NewVersion.certVersion = $APIEntry.Certificates[0].LatestVersion.VersionID
+                if ($NewVersion.Deploy -eq @("False")) { $NewVersion.Deploy -eq @("True") }
+                # prepend NewVersion
+                $Certificate.certVersions = , (New-Object PSObject -Property $NewVersion) + $Certificate.certVersions
+                if ($Certificate.DeployStrategy -eq "Persist"){
+                    # Set the second most recent certificate deploy=false
+                    if ($Certificate.certVersions[1]){
+                        $Certificate.certVersions[1].Deploy = @("True")
+                    }
+                } 
+                else {
+                    if ($Certificate.certVersions[1]){
+                        $Certificate.certVersions[1].Deploy = @("False")
+                    }
+                }
+                # if a third (or more) certificate version exists, delete it
+                $Certificate.certVersions = @($Certificate.certVersions[0] , $Certificate.certVersions[1])
+            }
+        }
+    }
+    # Iterate through secret objects in manifest
+    if ($null -ne $Manifest.Secrets) {
+        foreach ($Certificate in $Manifest.Secrets) { 
+            # get latest api entry data
+            $APIEntry = Get-APICertificateEntry -Cert $Certificate -CAMConfig $CAMConfig
+            $update = $true
+            if ($APIEntry -eq $null) {
+                $update = $false
+            } 
+			else {
+                # Check if API entry latest version is in the manifest
+                foreach($certVersion in $Certificate.certVersions) {
+                    if ($APIEntry.Certificates[0].LatestVersion.VersionID -eq $certVersion) {
+                        $update = $false
+                    }
+                }
+            }
+            if ($update) {
+				# Check if there are partner teams to whitelist the certificate
+				# If so, check if those partner teams have completed whitelist task
+                foreach ($entry in $APIEntry.Certificates[0].LatestVersion.PartnerRenewalTaskIDs) {
+                    if ($entry.VSOTaskStatus -ne "Completed") {
+                        $update = $false
+                    }
+                }
+            }
+            if ($update) { 
+                # the api entry has a new version not present in the manifest
+                # Add the certificate version to the manifest with deploy=true 
+                $NewVersion = @{}
+                # iterate through current certificate version and copy properties
+                $Certificate.certVersions[0].PsObject.Properties |  foreach-object {
+                    $NewVersion.Add($_.name, $_.value)
+                }
+                # update certVersion property and deploy property
+                $NewVersion.certVersion = $APIEntry.Certificates[0].LatestVersion.VersionID
+                if ($NewVersion.Deploy -eq @("False")) { $NewVersion.Deploy -eq @("True") }
+                # prepend NewVersion
+                $Certificate.certVersions = , (New-Object PSObject -Property $NewVersion) + $Certificate.certVersions
+                
+                if ($Certificate.DeployStrategy -eq "Persist"){
+                    # Set the second most recent certificate deploy=false
+                    if ($Certificate.certVersions[1]){
+                        $Certificate.certVersions[1].Deploy = @("True")
+                    }
+                } 
+                else {
+                    if ($Certificate.certVersions[1]){
+                        $Certificate.certVersions[1].Deploy = @("False")
+                    }
+                }
+                # if a third (or more) certificate version exists, delete it
+                $Certificate.certVersions = @($Certificate.certVersions[0] , $Certificate.certVersions[1])
+            }
+        }
+    }
+
+    # Update the manifest in the Key Vault
+    Set-AzureKeyVaultSecret -VaultName $CAMConfig.KeyVault -SecretName "$($CAMConfig.KeyVault)-Manifest" -SecretValue (($Manifest | ConvertTo-Json -Depth 4) | ConvertTo-SecureString -AsPlainText -Force)
+    return $Manifest
+}
+
+function Get-ApiCertificateEntry(){
+param(
+    [parameter()]
+    $Cert,
+    [parameter()]
+    [PSTypeName("CAMConfig")]$CAMConfig = $script:CAMConfig
+)
+    $Service = $CAMConfig.KeyVault
+    $ServiceId = ""
+    if ($Cert.KeyVault) {
+        $Service = $Cert.KeyVault
+    }
+    foreach ($sid in $CAMConfig.SID) {
+        if ($sid.Service -eq $Service) {
+            $ServiceId = $sid.SID
+        }
+    }
+    $Url = "$($CAMConfig.ApiBaseUrl)/v1/api/services/$ServiceId/certificates/$($Cert.CertName)/status"
+    $Token = Acquire-Token -CAMConfig $CAMConfig
+    for ($x = 0; $x -lt 3; $x++){
+        try{
+            $Response = (Invoke-WebRequest $url -TimeoutSec 30 -Headers @{
+                "Authorization"="Bearer $Token"
+            }).Content | ConvertFrom-Json
+            continue
+        }
+        catch {
+            Write-WarningLog -Message "CAM: Unable to reach url: $url" -EventId 2017 -OnlyEvent $true -CAMConfig $CAMConfig
+            if ($x -eq 0) {
+                # we have exhausted 3 retries with no results
+                return $null
+            }
+        }
+
+    }
+    return $Response
+}
+
+function Get-ApiCertificateVersionList(){
+param(
+    [parameter()]
+    [PSTypeName("CAMConfig")]$CAMConfig = $script:CAMConfig
+)   
+    $VersionList = @()
+    foreach ($SID in $CAMConfig.SID){
+    $Url = "$($CAMConfig.ApiBaseUrl)/v1/api/services/$($SID.SID)/certificates"
+    $Token = Acquire-Token -CAMConfig $CAMConfig
+    for ($x = 0; $x -lt 3; $x++){
+        try {
+                $Response = (Invoke-WebRequest $url -TimeoutSec 30 -Headers @{ 
+                    "Authorization"="Bearer $Token" 
+                }).Content | ConvertFrom-Json
+                continue
+            }
+            catch {
+                Write-InfoLog -Message "CAM: Unable to reach url: $url" -EventId 2017 -OnlyEvent $true -CAMConfig $CAMConfig
+                if ($x -eq 0) {
+                    # we have exhausted 3 retries with no results
+                    return $null
+                }
+            }
+        }
+        # iterate through certificates and find latest versions id
+        foreach ($entry in $Response.Certificates) {
+            # iterate through multiple versions stored in an entry
+            foreach ($version in $entry.Versions){
+                if ($version.Latest -eq $true){
+                    $latestVersion = $version.VersionId
+                }
+            }
+            if ($latestVersion){
+                $VersionList = $VersionList + $latestVersion
+            }
+        }
+    }
+    return $VersionList
+}
+
+
+function Acquire-Token {
+param(
+    [parameter()]
+    [PSTypeName("CAMConfig")]$CAMConfig = $script:CAMConfig,
+    [parameter()]
+    [string]$Path = (Get-Item -Path ".\").FullName
+)
+    $clientId = $CAMConfig.AADApplicationId
+    $resourceId = $CAMConfig.ApiAADApplicationId
+    $authority = "https://login.microsoftonline.com/$($CAMConfig.TenantId)"
+    $authenticationContext = [Microsoft.IdentityModel.Clients.ActiveDirectory.AuthenticationContext]::new($authority)
+    if ($CAMConfig.AADApplicationKey) {
+        $clientCredential = [Microsoft.IdentityModel.Clients.ActiveDirectory.ClientCredential]::new($clientId, $CAMConfig.AADApplicationKey)     
+        $Token = $authenticationContext.AcquireToken($resourceId, $clientCredential).AccessToken
+    }
+    else {
+        $pfx = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2("$($Path)\$($CAMConfig.KeyVaultCertificate).pfx", $CAMConfig.KeyVaultCertificatePassword)
+        $clientCredential = [Microsoft.IdentityModel.Clients.ActiveDirectory.ClientAssertionCertificate]::new($clientId,$pfx)
+        $Token = $authenticationContext.AcquireToken($resourceId, [Microsoft.IdentityModel.Clients.ActiveDirectory.ClientAssertionCertificate]$clientCredential).AccessToken    
+    }
+    return $Token
+}
+    
+# END API FUNCTIONS
+
+
 # SETUP FUNCTIONS
 
 # Script level variable for fallbacks during development, should store these in config or pass in to individual functions.
@@ -226,6 +476,9 @@ param(
         $script:CAMConfig.KeyVaultCertificatePassword = $CAMConfig.KeyVaultCertificatePassword
         $script:CAMConfig.KeyVault = $CAMConfig.KeyVault
         $script:CAMConfig.Environment = $CAMConfig.Environment
+        $script:CAMConfig.ApiAADApplicationId = $CAMConfig.ApiAADApplicationId
+        $script:CAMConfig.ApiBaseUrl = $CAMConfig.ApiBaseUrl
+        $script:CAMConfig.SID = $CAMConfig.SID
         $script:CAMConfig.LogToWindowsEventLog = $CAMConfig.LogToWindowsEventLog
         return
     }
@@ -244,6 +497,15 @@ param(
             }
             $script:CAMConfig.KeyVault = $Json.KeyVault
             $script:CAMConfig.Environment = $Json.Environment
+            if ($Json.ApiBaseUrl) {
+                $script:CAMConfig.ApiBaseUrl = $Json.ApiBaseUrl
+            }
+            if ($Json.SID) {
+                $script:CAMConfig.SID = $Json.SID
+            }
+            if ($Json.ApiAADApplicationId) {
+                $script:CAMConfig.ApiAADApplicationId = $Json.ApiAADApplicationId
+            }
             if ($Json.LogToWindowsEventLog) {
                 $script:CAMConfig.LogToWindowsEventLog = $Json.LogToWindowsEventLog
             }
@@ -299,7 +561,7 @@ param(
         return $true
     }
     catch {
-        Write-WarningLog -Message "Unable to schedule CAM task. Exception $_"
+        Write-WarningLog -Message "Unable to schedule CAM task. Error: $_"
             -EventId 2004
     }
 }
@@ -484,9 +746,24 @@ param(
         $manifestName = "$($CAMConfig.KeyVault)-manifest"
         $manifest = Get-AzureKeyVaultSecret -VaultName $CAMConfig.KeyVault -Name $manifestName -ErrorAction Stop 
         $json = $manifest.SecretValueText | ConvertFrom-Json
+        Write-InfoLog -Message "CAM: Manifest retrieved from Key Vault"        
+        if ($CAMConfig.ApiBaseUrl) {
+            # if manifest has not been updated within the last hour, check API
+            if ($manifest.attributes.updated -lt ((Get-Date)-(New-Timespan -Hours 1))) { 
+                try {
+                    # create an updated verison of manifest
+                    $update = (Update-Manifest -Manifest $json -CAMConfig $CAMConfig)
+                    # reset our json if succesfully updated
+                    $json = $update
+                    Write-InfoLog -Message "CAM: Manifest was out of date, and updated in Key Vault" -EventId 1010
+                } 
+                catch {
+                    Write-WarningLog -Message "CAM: Failed to update manifest in Key Vault. Error: $_" -EventId 2018 -CAMConfig $CAMConfig               
+                }
+            }
+        }
     }
 
-    $ManifestName = ""
     $DefaultKeyVault = $CAMConfig.KeyVault
 
     Write-InfoLog -Message  "CAM: $($ManifestName)Manifest loaded" -EventId 1004 -CAMConfig $CAMConfig    
@@ -676,7 +953,7 @@ param(
         }
     }
     catch {
-        Write-ErrorLog -Message "CAM: Certificate $Certname could not be imported with password. Exception: $_" -EventId 2009 -CAMConfig $CAMConfig         
+        Write-ErrorLog -Message "CAM: Certificate $Certname could not be imported with password. Error: $_" -EventId 2009 -CAMConfig $CAMConfig         
         return
     }
     $Pfx.FriendlyName = $CertName
@@ -794,7 +1071,7 @@ param(
         }
     }
     catch {
-        Write-ErrorLog -Message "CAM: Certificate $Certname could not be imported with password. Exception: $_" -EventId 2009 -CAMConfig $CAMConfig         
+        Write-ErrorLog -Message "CAM: Certificate $Certname could not be imported with password. Error: $_" -EventId 2009 -CAMConfig $CAMConfig         
         return
     }
     $Pfx.FriendlyName = $CertName
@@ -899,7 +1176,7 @@ param(
         }
     }
     catch {
-        Write-ErrorLog -Message "CAM: Failed to delete certificate $($CertLocation). Exception: $_" -EventId 2013 -CAMConfig $CAMConfig         
+        Write-ErrorLog -Message "CAM: Failed to delete certificate $($CertLocation). Error: $_" -EventId 2013 -CAMConfig $CAMConfig         
     }
 }
 
@@ -953,13 +1230,13 @@ param(
                 Write-InfoLog -Message "CAM: Granted access to $User for certificate $CertName in $CertStoreLocation\$CertStoreName store." -EventId 1009 -CAMConfig $CAMConfig                         
             }
             catch {
-                Write-ErrorLog -Message "CAM: Unable to grant access to $User for certificate $CertName in $CertStoreLocation\$CertStoreName store. Exception: $_" `
+                Write-ErrorLog -Message "CAM: Unable to grant access to $User for certificate $CertName in $CertStoreLocation\$CertStoreName store. Error: $_" `
                     -EventId 2015 -CAMConfig $CAMConfig                         
             }
         }
     }
     catch {
-        Write-ErrorLog -Message "CAM: Grant-CertificateAccess failed. Exception: $_" -EventId 2016 -CAMConfig $CAMConfig                         
+        Write-ErrorLog -Message "CAM: Grant-CertificateAccess failed. Error: $_" -EventId 2016 -CAMConfig $CAMConfig                         
     }
 }
 
@@ -1020,7 +1297,7 @@ param(
         $Pfx = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2($CertBytes, $Password, "PersistKeySet")
     }
     catch {
-        Write-ErrorLog -Message "CAM: Certificate $Certname could not be imported with password. Exception: $_" -EventId 2009 -CAMConfig $CAMConfig         
+        Write-ErrorLog -Message "CAM: Certificate $Certname could not be imported with password. Error: $_" -EventId 2009 -CAMConfig $CAMConfig         
         return
     }
     $Thumbprint = $Pfx.Thumbprint
