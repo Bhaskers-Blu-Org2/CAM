@@ -486,6 +486,8 @@ param(
     The frequency in minutes that the module should be run. This defaults to 5 minutes.
 .PARAMETER Path
     The path to the directory that houses the CAM module you will use. This defaults to the current directory. 
+.PARAMETER LocalModule
+    Boolean value to indicate that the CAM should be loaded from a local file instead of the PSGallery. This defaults to false. 
 .EXAMPLE
     C:\PS> New-CAMSchedule -Path "C:\CAM"
 #>
@@ -496,19 +498,30 @@ param(
     [parameter()]
     [int]$Frequency = 5,
     [parameter()]
-    [string]$Path = (Get-Item -Path ".\").FullName
+    [string]$Path = (Get-Item -Path ".\").FullName,
+    [parameter()]
+    [bool]$LocalModule = $false
 )
     try {
         if ($LocalManifest) {
             $LocalManifest = " -LocalManifest " + '"' + $LocalManifest + '"'
         }
+        $argument = "Import-Module CAM; Install-KVCertificates$LocalManifest"
+        if ($LocalModule){
+            $argument = "Import-Module .\CAM.psm1; Install-KVCertificates$LocalManifest"            
+        }
 
-        $action = New-ScheduledTaskAction -Execute 'Powershell.exe' -WorkingDirectory "$Path" -Argument "Import-Module .\CAM.psm1; Install-KVCertificates$LocalManifest"
+        $action = New-ScheduledTaskAction -Execute 'Powershell.exe' -WorkingDirectory "$Path" -Argument "Import-Module CAM; Install-KVCertificates$LocalManifest"
 
-        $trigger =  New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes $Frequency) 
+        # different syntax for server OS
+        if ([System.Environment]::OSVersion.Version.Major -ne 10){
+            $trigger =  New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes $Frequency) -RepetitionDuration ([timespan]::MaxValue)
+        }
+        else {
+            $trigger =  New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes $Frequency) 
+        }
 
         Register-ScheduledTask -Action $action -Trigger $trigger -TaskName "CAM" -RunLevel Highest
-        return $true
     }
     catch {
         Write-WarningLog -Message "Unable to schedule CAM task. Error: $_" -EventId 2004
