@@ -696,7 +696,7 @@ param(
         $manifestName = "$($CAMConfig.KeyVault)-manifest"
         $manifest = Get-AzureKeyVaultSecret -VaultName $CAMConfig.KeyVault -Name $manifestName -ErrorAction Stop 
         $json = $manifest.SecretValueText | ConvertFrom-Json
-        Write-InfoLog -Message "CAM: Manifest retrieved from Key Vault" -EventId -1011        
+        Write-InfoLog -Message "CAM: Manifest retrieved from Key Vault" -EventId 1011        
         if ($CAMConfig.ApiBaseUrl) {
             # if manifest has not been updated within the last hour, check API
             if ($manifest.attributes.updated -lt ((Get-Date)-(New-Timespan -Hours 1))) { 
