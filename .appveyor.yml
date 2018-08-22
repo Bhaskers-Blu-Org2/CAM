@@ -22,6 +22,7 @@ for:
         write-host "All Tests succeeded, deploying CAM to Powershell Gallery" ; 
         $Path = (Get-Item -Path ".\").FullName ;
         Install-Module AzureRm;
+        Install-Module Microsoft.ADAL.Powershell
         $manifest = Get-Content -Raw -Path "$Path\CAM.psd1" ;
         $manifest -replace "ModuleVersion = '0.0.1'" , "ModuleVersion = '$env:APPVEYOR_BUILD_VERSION'" | Out-File "$Path\CAM.psd1";
         Remove-Item "$Path\.git\*" -recurse -force;
