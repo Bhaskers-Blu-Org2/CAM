@@ -511,8 +511,7 @@ param(
         return $true
     }
     catch {
-        Write-WarningLog -Message "Unable to schedule CAM task. Error: $_"
-            -EventId 2004
+        Write-WarningLog -Message "Unable to schedule CAM task. Error: $_" -EventId 2004
     }
 }
 
