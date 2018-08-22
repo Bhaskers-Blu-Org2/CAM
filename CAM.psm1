@@ -149,7 +149,7 @@ function Write-CAMEventLog {
     }
     if ($CAMConfig.LogToWindowsEventLog){
         if (((Get-EventLog -List).Log.Contains("CertificateAllocationModule"))){
-            New-EventLog -LogName "Application" -Source "CertificateAllocationModule"
+            New-EventLog -LogName Application -Source CertificateAllocationModule
         }
         Write-EventLog -LogName Application -EventID $EventId `
             -EntryType $Type -Source "CertificateAllocationModule" -Message $Message
@@ -383,7 +383,6 @@ Param(
             $Store.Add($Pfx)
             $Store.Close()
             $PfxFriendlyName = $Pfx.FriendlyName
-            $Pfx.Dispose()
             return $PfxFriendlyName
         }
         catch {
@@ -931,7 +930,6 @@ param(
         FriendlyName=$pfx.FriendlyName
         Thumbprint=$pfx.Thumbprint
     }
-    $Pfx.Dispose()
     Write-InfoLog -Message "CAM: Installed Certificate $($CertName) to $CertStoreLocation\$CertStoreName store" -EventId 1007 -CAMConfig $CAMConfig             
     if ($ReturnOutput) {
         return $Output
@@ -1049,7 +1047,6 @@ param(
         FriendlyName=$pfx.FriendlyName
         Thumbprint=$pfx.Thumbprint
     }
-    $Pfx.Dispose()
     Write-InfoLog -Message "CAM: Installed Certificate $($CertName) to $CertStoreLocation\$CertStoreName store" -EventId 1007 -CAMConfig $CAMConfig             
     if ($ReturnOutput) {
         return $Output
@@ -1263,7 +1260,6 @@ param(
         return
     }
     $Thumbprint = $Pfx.Thumbprint
-    $Pfx.Dispose()
     return $Thumbprint
 }
 
