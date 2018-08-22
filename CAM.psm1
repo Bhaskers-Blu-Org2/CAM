@@ -330,17 +330,16 @@ param(
     $clientId = $CAMConfig.AADApplicationId
     $resourceId = $CAMConfig.ApiAADApplicationId
     $authority = "https://login.microsoftonline.com/$($CAMConfig.TenantId)"
-    #$authority = "https://login.microsoftonline.com/$($CAMConfig.TenantId)"
     $authenticationContext = [Microsoft.IdentityModel.Clients.ActiveDirectory.AuthenticationContext]::new($authority)
-    #if ($CAMConfig.AADApplicationKey) {
+    if ($CAMConfig.AADApplicationKey) {
         $clientCredential = [Microsoft.IdentityModel.Clients.ActiveDirectory.ClientCredential]::new($clientId, $CAMConfig.AADApplicationKey)     
         $Token = $authenticationContext.AcquireToken($resourceId, $clientCredential).AccessToken
-    #}
-    #else {
-    #    $pfx = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2("$($Path)\$($CAMConfig.KeyVaultCertificate).pfx", $CAMConfig.KeyVaultCertificatePassword)
-    #    $clientCredential = [Microsoft.IdentityModel.Clients.ActiveDirectory.ClientAssertionCertificate]::new($clientId,$pfx)
-    #    $Token = $authenticationContext.AcquireToken($resourceId, [Microsoft.IdentityModel.Clients.ActiveDirectory.ClientAssertionCertificate]$clientCredential).AccessToken    
-    #}
+    }
+    else {
+        $pfx = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2("$($Path)\$($CAMConfig.KeyVaultCertificate).pfx", $CAMConfig.KeyVaultCertificatePassword)
+        $clientCredential = [Microsoft.IdentityModel.Clients.ActiveDirectory.ClientAssertionCertificate]::new($clientId,$pfx)
+        $Token = $authenticationContext.AcquireToken($resourceId, [Microsoft.IdentityModel.Clients.ActiveDirectory.ClientAssertionCertificate]$clientCredential).AccessToken    
+    }
     return $Token
 }
     
@@ -1295,4 +1294,3 @@ Export-ModuleMember -Function Install-KVCertificates
 Export-ModuleMember -Function Install-KVCertificateObject
 Export-ModuleMember -Function Install-KVSecretObject
 Export-ModuleMember -Function Remove-Certificate
-
