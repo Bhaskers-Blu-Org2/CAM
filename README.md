@@ -32,6 +32,8 @@ Install-Module -Name "CAM"
 ```
 
 # Version + Updates
+**1.8** When the manifest is collected from the KeyVault, an API call is made to a provided endpoint to gather renewal information on your service. If there are newly available certificates and they are ready, the manifest will automatically be altered to enable the new certificate and disable the old certificate. This gets the CAM closer to a fully automated certificate solution. Learn more in the Wiki under "API Onboarding".
+
 **1.7** You can now have all the output the CAM typically generates pushed to the WindowsEventLog by setting the property "LogToWindowsEventLog" to *true* in the CAMConfig.
 
 **1.6** You can now install just the public key of a certificate from Key Vault by adding the `"PublicKeyOnly":true` property to your Manifest. Alternatively if you are calling the cmdlets directly you would pass the `-PublicKeyOnly $true` parameter. Additionally, due to investigation into Key storage within Key Vault, certificates are now pulled using the Get-AzureKeyVaultSecret AzureRm cmdlet within the Install-KVCertificateObject cmdlet.

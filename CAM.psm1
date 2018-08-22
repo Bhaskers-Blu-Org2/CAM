@@ -1,4 +1,4 @@
-# CONSTRUCTORS
+﻿# CONSTRUCTORS
 
 <# 
 .SYNOPSIS
@@ -176,113 +176,102 @@ param(
     #iterate through certificate objects in manifest   
     if ($null -ne $Manifest.certificates) {
         foreach ($Certificate in $Manifest.Certificates) {
-            # get latest api entry data
-			$APIEntry = Get-APICertificateEntry -Cert $Certificate -CAMConfig $CAMConfig
-            $update = $true
-
-            if ($APIEntry -eq $null) {
-                $update = $false
-            } 
-			else {
+            if ($Certificate.DeployStrategy -ne "Ignore") {
+                # get latest api entry data
+                $update = $true
                 # Check if API entry latest version is in the manifest
                 foreach($certVersion in $Certificate.certVersions) {
-                    if ($APIEntry.Certificates[0].LatestVersion.VersionID -eq $certVersion) {
-                        $update = $false
+                    # check that this certificate is listed as active in the manifest
+                    if ($certVersion.Deploy -notcontains $false){
+                        # check that this certificate is on the Overall list
+                        $certIsCurrent = $OverallCertificatesList | Where-Object { $_[1] -contains $certVersion[0].certVersion }
+                        if ($certIsCurrent) {
+                            $update = $false
+                        }
+                        else { 
+                            $newVersionId = ($OverallCertificatesList | Where-Object { $_[0] -contains $Certificate.certName })[1]
+                        }
                     }
                 }
-            }
-			if ($update) {
-				# Check if there are partner teams to whitelist the certificate
-				# If so, check if those partner teams have completed whitelist task
-                foreach ($entry in $APIEntry.Certificates[0].LatestVersion.PartnerRenewalTaskIDs) {
-                    if ($entry.VSOTaskStatus -ne "Completed") {
-                        $update = $false
+                if ($update){
+                    # the api entry has a new version not present in the manifest
+                    # Add the certificate version to the manifest with deploy=true <#
+                    $NewVersion = @{}
+                    # iterate through current certificate version and copy properties
+                    $Certificate.certVersions[0].PsObject.Properties | foreach-object {
+                        $NewVersion.Add($_.name, $_.value)
                     }
-                }
-            }
-            if ($update){
-                # the api entry has a new version not present in the manifest
-                # Add the certificate version to the manifest with deploy=true <#
-                $NewVersion = @{}
-                # iterate through current certificate version and copy properties
-                $Certificate.certVersions[0].PsObject.Properties | foreach-object {
-                    $NewVersion.Add($_.name, $_.value)
-                }
-                # update certVersion property and deploy property
-                $NewVersion.certVersion = $APIEntry.Certificates[0].LatestVersion.VersionID
-                if ($NewVersion.Deploy -eq @("False")) { $NewVersion.Deploy -eq @("True") }
-                # prepend NewVersion
-                $Certificate.certVersions = , (New-Object PSObject -Property $NewVersion) + $Certificate.certVersions
-                if ($Certificate.DeployStrategy -eq "Persist"){
-                    # Set the second most recent certificate deploy=false
-                    if ($Certificate.certVersions[1]){
-                        $Certificate.certVersions[1].Deploy = @("True")
+                    # update certVersion property and deploy property
+                    $NewVersion.certVersion = $newVersionId
+                    if ($NewVersion.Deploy -eq @("False")) { $NewVersion.Deploy -eq @("True") }
+                    # prepend NewVersion
+                    $Certificate.certVersions = , (New-Object PSObject -Property $NewVersion) + $Certificate.certVersions
+                    if ($Certificate.DeployStrategy -eq "Persist"){
+                        # Set the second most recent certificate deploy=false
+                        if ($Certificate.certVersions[1]){
+                            $Certificate.certVersions[1].Deploy = @("True")
+                        }
+                    } 
+                    else {
+                        if ($Certificate.certVersions[1]){
+                            $Certificate.certVersions[1].Deploy = @("False")
+                        }
                     }
-                } 
-                else {
-                    if ($Certificate.certVersions[1]){
-                        $Certificate.certVersions[1].Deploy = @("False")
-                    }
+                    # if a third (or more) certificate version exists, delete it
+                    $Certificate.certVersions = @($Certificate.certVersions[0] , $Certificate.certVersions[1])
                 }
-                # if a third (or more) certificate version exists, delete it
-                $Certificate.certVersions = @($Certificate.certVersions[0] , $Certificate.certVersions[1])
             }
         }
     }
     # Iterate through secret objects in manifest
     if ($null -ne $Manifest.Secrets) {
-        foreach ($Certificate in $Manifest.Secrets) { 
-            # get latest api entry data
-            $APIEntry = Get-APICertificateEntry -Cert $Certificate -CAMConfig $CAMConfig
-            $update = $true
-            if ($APIEntry -eq $null) {
-                $update = $false
-            } 
-			else {
+        foreach ($Certificate in $Manifest.Secrets) {
+            if ($Certificate.DeployStrategy -ne "Ignore") {
+                # get latest api entry data
+                $update = $true
                 # Check if API entry latest version is in the manifest
                 foreach($certVersion in $Certificate.certVersions) {
-                    if ($APIEntry.Certificates[0].LatestVersion.VersionID -eq $certVersion) {
-                        $update = $false
+                    # check that this certificate is listed as active in the manifest
+                    if ($certVersion.Deploy -notcontains $false){
+                        # check that this certificate is on the Overall list
+                        $certIsCurrent = $OverallCertificatesList | Where-Object { $_[1] -contains $certVersion[0].certVersion }
+                        if ($certIsCurrent) {
+                            $update = $false
+                        }
+                        else { 
+                            $newVersionId = ($OverallCertificatesList | Where-Object { $_[0] -contains $Certificate.certName })[1]
+                        }
                     }
                 }
-            }
-            if ($update) {
-				# Check if there are partner teams to whitelist the certificate
-				# If so, check if those partner teams have completed whitelist task
-                foreach ($entry in $APIEntry.Certificates[0].LatestVersion.PartnerRenewalTaskIDs) {
-                    if ($entry.VSOTaskStatus -ne "Completed") {
-                        $update = $false
+                if ($update) { 
+                    # the api entry has a new version not present in the manifest
+                    # Add the certificate version to the manifest with deploy=true 
+                    $NewVersion = @{}
+                    # iterate through current certificate version and copy properties
+                    $Certificate.certVersions[0].PsObject.Properties |  foreach-object {
+                        $NewVersion.Add($_.name, $_.value)
                     }
-                }
-            }
-            if ($update) { 
-                # the api entry has a new version not present in the manifest
-                # Add the certificate version to the manifest with deploy=true 
-                $NewVersion = @{}
-                # iterate through current certificate version and copy properties
-                $Certificate.certVersions[0].PsObject.Properties |  foreach-object {
-                    $NewVersion.Add($_.name, $_.value)
-                }
-                # update certVersion property and deploy property
-                $NewVersion.certVersion = $APIEntry.Certificates[0].LatestVersion.VersionID
-                if ($NewVersion.Deploy -eq @("False")) { $NewVersion.Deploy -eq @("True") }
-                # prepend NewVersion
-                $Certificate.certVersions = , (New-Object PSObject -Property $NewVersion) + $Certificate.certVersions
-                
-                if ($Certificate.DeployStrategy -eq "Persist"){
-                    # Set the second most recent certificate deploy=false
-                    if ($Certificate.certVersions[1]){
-                        $Certificate.certVersions[1].Deploy = @("True")
+                    # update certVersion property and deploy property
+                    $NewVersion.certVersion = $newVersionId
+                    if ($NewVersion.Deploy -eq @("False")) { $NewVersion.Deploy -eq @("True") }
+                    # prepend NewVersion
+                    $Certificate.certVersions = , (New-Object PSObject -Property $NewVersion) + $Certificate.certVersions
+                    
+                    if ($Certificate.DeployStrategy -eq "Persist"){
+                        # Set the second most recent certificate deploy=false
+                        if ($Certificate.certVersions[1]){
+                            $Certificate.certVersions[1].Deploy = @("True")
+                        }
+                    } 
+                    else {
+                        if ($Certificate.certVersions[1]){
+                            $Certificate.certVersions[1].Deploy = @("False")
+                        }
                     }
-                } 
-                else {
-                    if ($Certificate.certVersions[1]){
-                        $Certificate.certVersions[1].Deploy = @("False")
-                    }
+                    # if a third (or more) certificate version exists, delete it
+                    $Certificate.certVersions = @($Certificate.certVersions[0] , $Certificate.certVersions[1])
                 }
-                # if a third (or more) certificate version exists, delete it
-                $Certificate.certVersions = @($Certificate.certVersions[0] , $Certificate.certVersions[1])
-            }
+            } 
         }
     }
 
@@ -291,55 +280,18 @@ param(
     return $Manifest
 }
 
-function Get-ApiCertificateEntry(){
-param(
-    [parameter()]
-    $Cert,
-    [parameter()]
-    [PSTypeName("CAMConfig")]$CAMConfig = $script:CAMConfig
-)
-    $Service = $CAMConfig.KeyVault
-    $ServiceId = ""
-    if ($Cert.KeyVault) {
-        $Service = $Cert.KeyVault
-    }
-    foreach ($sid in $CAMConfig.SID) {
-        if ($sid.Service -eq $Service) {
-            $ServiceId = $sid.SID
-        }
-    }
-    $Url = "$($CAMConfig.ApiBaseUrl)/v1/api/services/$ServiceId/certificates/$($Cert.CertName)/status"
-    $Token = Acquire-Token -CAMConfig $CAMConfig
-    for ($x = 0; $x -lt 3; $x++){
-        try{
-            $Response = (Invoke-WebRequest $url -TimeoutSec 30 -Headers @{
-                "Authorization"="Bearer $Token"
-            }).Content | ConvertFrom-Json
-            continue
-        }
-        catch {
-            Write-WarningLog -Message "CAM: Unable to reach url: $url" -EventId 2017 -OnlyEvent $true -CAMConfig $CAMConfig
-            if ($x -eq 0) {
-                # we have exhausted 3 retries with no results
-                return $null
-            }
-        }
-
-    }
-    return $Response
-}
-
 function Get-ApiCertificateVersionList(){
 param(
     [parameter()]
     [PSTypeName("CAMConfig")]$CAMConfig = $script:CAMConfig
 )   
+    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
     $VersionList = @()
     foreach ($SID in $CAMConfig.SID){
-    $Url = "$($CAMConfig.ApiBaseUrl)/v1/api/services/$($SID.SID)/certificates"
-    $Token = Acquire-Token -CAMConfig $CAMConfig
-    for ($x = 0; $x -lt 3; $x++){
-        try {
+        $Url = "$($CAMConfig.ApiBaseUrl)/v1/api/services/$($SID.SID)/certificates/ReadyToDeploy"
+        $Token = Acquire-Token -CAMConfig $CAMConfig
+        for ($x = 0; $x -lt 3; $x++){
+            try {
                 $Response = (Invoke-WebRequest $url -TimeoutSec 30 -Headers @{ 
                     "Authorization"="Bearer $Token" 
                 }).Content | ConvertFrom-Json
@@ -357,12 +309,10 @@ param(
         foreach ($entry in $Response.Certificates) {
             # iterate through multiple versions stored in an entry
             foreach ($version in $entry.Versions){
-                if ($version.Latest -eq $true){
-                    $latestVersion = $version.VersionId
+                # if latest version and ready, add it to the version list with the cert name
+                if ($version.Latest -eq $true -and $version.Ready -eq $true){
+                    $VersionList += , @($entry.CertName,$version.VersionId)
                 }
-            }
-            if ($latestVersion){
-                $VersionList = $VersionList + $latestVersion
             }
         }
     }
