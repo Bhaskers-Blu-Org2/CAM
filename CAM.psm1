@@ -383,6 +383,7 @@ Param(
             $Store.Add($Pfx)
             $Store.Close()
             $PfxFriendlyName = $Pfx.FriendlyName
+            $Pfx.Dispose()
             return $PfxFriendlyName
         }
         catch {
@@ -909,6 +910,10 @@ param(
     try {
         $CertBytes = [Convert]::FromBase64String($Cert.SecretValueText)
         $Pfx = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2($CertBytes, "", $keyStorageFlags)
+        if (Test-Path "cert:\$CertStoreLocation\$CertStoreName\$($Pfx.Thumbprint)"){
+            Write-InfoLog -Message "CAM: Certificate $($certName) already exists in $CertStoreLocation\$CertStoreName store" -EventId 1012 -CAMConfig $CAMConfig 
+            return
+        }
         if ($PublicKeyOnly -and $Pfx.HasPrivateKey) {
             $Pfx.PrivateKey = $null
         }
@@ -930,6 +935,7 @@ param(
         FriendlyName=$pfx.FriendlyName
         Thumbprint=$pfx.Thumbprint
     }
+    $Pfx.Dispose()
     Write-InfoLog -Message "CAM: Installed Certificate $($CertName) to $CertStoreLocation\$CertStoreName store" -EventId 1007 -CAMConfig $CAMConfig             
     if ($ReturnOutput) {
         return $Output
@@ -1026,6 +1032,10 @@ param(
         else {
             $Pfx = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2($CertBytes, $Password, $keyStorageFlags)
         }
+        if (Test-Path "cert:\$CertStoreLocation\$CertStoreName\$($Pfx.Thumbprint)"){
+            Write-InfoLog -Message "CAM: Certificate $($certName) already exists in $CertStoreLocation\$CertStoreName store" -EventId 1012 -CAMConfig $CAMConfig 
+            return
+        }
         if ($PublicKeyOnly -and $Pfx.HasPrivateKey) {
             $Pfx.PrivateKey = $null
         }
@@ -1047,6 +1057,7 @@ param(
         FriendlyName=$pfx.FriendlyName
         Thumbprint=$pfx.Thumbprint
     }
+    $Pfx.Dispose()
     Write-InfoLog -Message "CAM: Installed Certificate $($CertName) to $CertStoreLocation\$CertStoreName store" -EventId 1007 -CAMConfig $CAMConfig             
     if ($ReturnOutput) {
         return $Output
@@ -1260,6 +1271,7 @@ param(
         return
     }
     $Thumbprint = $Pfx.Thumbprint
+    $Pfx.Dispose()
     return $Thumbprint
 }
 
