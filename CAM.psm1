@@ -148,11 +148,11 @@ function Write-CAMEventLog {
         }
     }
     if ($CAMConfig.LogToWindowsEventLog){
-        if (!((Get-EventLog -List).Log.Contains("CertificateAllocationModule"))){
-            New-EventLog -LogName Application -Source CertificateAllocationModule
-        }
-        Write-EventLog -LogName Application -EventID $EventId `
-            -EntryType $Type -Source "CertificateAllocationModule" -Message $Message
+        if ((Get-EventLog -LogName Application -Source CertificateAllocationModule -Newest 1 -ErrorAction SilentlyContinue) -eq $null){
+	    New-EventLog -LogName Application -Source CertificateAllocationModule
+        } 
+	Write-EventLog -LogName Application -EventID $EventId `
+            	-EntryType $Type -Source "CertificateAllocationModule" -Message $Message
     }
 }
 
