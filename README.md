@@ -23,7 +23,7 @@
 - KeyVault – An Azure KeyVault that houses all the certificates for a specific service.  
 - Manifest.json – A configuration file that is a whitelist of certificates to download to the VMs. 
  
- ![CAM Structure](https://github.com/Microsoft/CAM/blob/master/CAMStructure.JPG)
+ ![CAM Structure](https://github.com/Microsoft/CAM/blob/master/CAM_Structure2.JPG)
  
 # Installation
 Available on the [Powershell gallery](https://www.powershellgallery.com/packages/CAM). Open a powershell window and execute:
